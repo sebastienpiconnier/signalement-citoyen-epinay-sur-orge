@@ -1,0 +1,366 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "votre-chemin-webhook",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*",
+          "rawBody": false
+        }
+      },
+      "id": "9d5f8a35-5066-4abf-8547-9d5ae73533d7",
+      "name": "Réception du signalement",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        384,
+        512
+      ],
+      "webhookId": "00000000-0000-0000-0000-000000000000",
+      "notes": "Maquette : origines ouvertes pour tester. À restreindre au domaine réel avant ouverture au public."
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"_lisez_moi\": \"Seul nœud à modifier. mode=maquette envoie TOUT vers bal_maquette. mode=production applique la table de routage et écrit au vrai déclarant.\",\n  \"mode\": \"maquette\",\n  \"bal_maquette\": \"boite-de-test@example.org\",\n  \"nom_expediteur\": \"Ville d'Épinay-sur-Orge (maquette)\",\n  \"archivage\": \"archivage@example.org\",\n  \"admin\": \"admin@example.org\",\n  \"defaut\": \"contact@example.org\",\n  \"routage\": {\n    \"Voirie et circulation\": \"services-techniques@example.org\",\n    \"Éclairage public\": \"services-techniques@example.org\",\n    \"Propreté et déchets\": \"proprete@example.org\",\n    \"Espaces verts et nature\": \"espaces-verts@example.org\",\n    \"Eau et assainissement\": \"services-techniques@example.org\",\n    \"Réseaux et numérique\": \"dsi@example.org\",\n    \"Animaux et nuisibles\": \"police-municipale@example.org\",\n    \"Cadre de vie et tranquillité\": \"police-municipale@example.org\",\n    \"Autre\": \"contact@example.org\"\n  }\n}",
+        "options": {}
+      },
+      "id": "61b2c465-cd6b-48c2-b8c5-09df442f49e4",
+      "name": "Table de routage",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        608,
+        512
+      ],
+      "notes": "Bascule maquette / production. En maquette, aucun courriel ne part vers une adresse mairie ni vers le déclarant."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validation, normalisation et résolution du destinataire.\n// Aucune donnée n'est stockée : ce nœud ne fait que nettoyer et router.\n\nconst conf = $('Table de routage').first().json;\nconst b = $('Réception du signalement').first().json.body || {};\nconst maquette = conf.mode === 'maquette';\n\nconst txt = (v, max) => String(v == null ? '' : v).trim().slice(0, max || 500);\nconst erreurs = [];\n\n// 1. Piège à robots : réponse volontairement neutre\nif (txt(b.societe)) {\n  return [{ json: { valide: false, silencieux: true, erreurs: ['rejet anti-robot'] } }];\n}\n\nconst categorie = txt(b.categorie, 80);\nconst motif = txt(b.motif, 120);\nconst description = txt(b.description, 1500);\nconst email = txt(b.email, 120).toLowerCase();\nconst adresse = txt(b.adresse, 200);\nconst complement = txt(b.complement, 200);\nconst nom = txt(b.nom, 80);\nconst telephone = txt(b.telephone, 24);\n\nconst lat = b.latitude === null || b.latitude === undefined ? null : Number(b.latitude);\nconst lon = b.longitude === null || b.longitude === undefined ? null : Number(b.longitude);\nconst coordsOk = Number.isFinite(lat) && Number.isFinite(lon)\n  && lat > 48.55 && lat < 48.80 && lon > 2.15 && lon < 2.50;\n\nif (!categorie) erreurs.push('Catégorie manquante.');\nif (!motif) erreurs.push('Motif manquant.');\nif (description.length < 20) erreurs.push('Description trop courte.');\nif (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$/.test(email)) erreurs.push('Adresse e-mail invalide.');\nif (b.consentement !== true) erreurs.push('Consentement manquant.');\nif (!coordsOk && !adresse) erreurs.push('Localisation manquante.');\n\nconst photos = Array.isArray(b.photos) ? b.photos.slice(0, 5) : [];\n\n// 2. Référence : celle de la page si elle est au bon format, sinon régénérée\nlet reference = txt(b.reference, 20);\nif (!/^ESO-\\d{6}-\\d{6}$/.test(reference)) {\n  const d = new Date();\n  const p = (n) => String(n).padStart(2, '0');\n  reference = 'ESO-' + String(d.getFullYear()).slice(2) + p(d.getMonth() + 1) + p(d.getDate())\n    + '-' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());\n}\n\nif (erreurs.length) {\n  return [{ json: { valide: false, silencieux: false, reference, erreurs } }];\n}\n\n// 3. Routage. En maquette, TOUT converge vers la boîte de test.\nconst cible = conf.routage[categorie] || conf.defaut;\nconst destinataire = maquette ? conf.bal_maquette : cible;\nconst destinataire_usager = maquette ? conf.bal_maquette : email;\nconst admin = maquette ? conf.bal_maquette : conf.admin;\nconst archivage = maquette ? '' : conf.archivage;\n\n// 4. Marqueurs visibles en maquette, vides en production\nconst prefixe_objet = maquette ? '[MAQUETTE] ' : '';\nconst entete_maquette = maquette\n  ? 'ENVOI DE TEST\\nEn production, ce message serait adressé à : ' + cible\n    + '\\nEt l\\'accusé de réception à : ' + email + '\\n\\n---\\n\\n'\n  : '';\n\n// 5. Liens cartographiques\nconst lienMaps = coordsOk ? 'https://www.google.com/maps/search/?api=1&query=' + lat + ',' + lon : '';\nconst lienOsm = coordsOk ? 'https://www.openstreetmap.org/?mlat=' + lat + '&mlon=' + lon + '#map=19/' + lat + '/' + lon : '';\n\nreturn [{\n  json: {\n    valide: true,\n    maquette,\n    reference,\n    horodatage: b.horodatage || new Date().toISOString(),\n    recu_le: new Date().toLocaleString('fr-FR', { timeZone: 'Europe/Paris' }),\n    categorie, motif, description,\n    adresse: adresse || 'non renseignée',\n    complement: complement || '',\n    latitude: coordsOk ? lat : null,\n    longitude: coordsOk ? lon : null,\n    precision_source: txt(b.precision_source, 20) || 'adresse',\n    email, nom: nom || 'non renseigné', telephone: telephone || 'non renseigné',\n    consentement: true,\n    user_agent: txt(b.user_agent, 300),\n    cible_production: cible,\n    destinataire, destinataire_usager, admin, archivage,\n    nom_expediteur: conf.nom_expediteur,\n    prefixe_objet, entete_maquette,\n    lien_maps: lienMaps,\n    lien_osm: lienOsm,\n    nb_photos: photos.length,\n    photos\n  }\n}];"
+      },
+      "id": "10e9ed50-079e-4f88-998a-07cff5ffaec1",
+      "name": "Validation et routage",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        832,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.valide }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "dc563e15-fe36-43fc-b521-8f60782c9aae",
+      "name": "Signalement valide ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1040,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Construction du message complet au format MIME, encodé pour l'API Gmail.\n//\n// Pourquoi ne pas utiliser le nœud Gmail ici : son champ de pièces jointes est une\n// collection à taille fixe. Avec un nombre de photos variable (0 à 5), il retombe sur\n// son nom de propriété par défaut et échoue avec « The item has no binary field data ».\n// Le message est donc assemblé à la main, puis envoyé par l'API Gmail via HTTP Request.\n\nconst d = $input.first().json;\nconst photos = (d.photos || []).slice(0, 5);\n\nconst b64 = (s) => Buffer.from(String(s), 'utf8').toString('base64');\nconst enTete = (s) => '=?UTF-8?B?' + b64(s) + '?=';          // RFC 2047, gère les accents\nconst plier = (s) => (String(s).match(/.{1,76}/g) || []).join('\\r\\n');\n\nconst limite = 'eso_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);\n\nconst objet = d.prefixe_objet + '[SIGNALEMENT ' + d.reference + '] '\n  + d.categorie + ' / ' + d.motif + ' - ' + d.adresse;\n\nconst corps = d.entete_maquette\n  + 'SIGNALEMENT CITOYEN ' + d.reference + '\\n'\n  + 'Reçu le ' + d.recu_le + '\\n\\n'\n  + 'OBJET\\n'\n  + 'Catégorie : ' + d.categorie + '\\n'\n  + 'Motif : ' + d.motif + '\\n\\n'\n  + 'LIEU\\n'\n  + 'Adresse : ' + d.adresse + '\\n'\n  + 'Repère : ' + (d.complement || 'non renseigné') + '\\n'\n  + 'Coordonnées : ' + (d.latitude !== null ? d.latitude + ', ' + d.longitude : 'non renseignées') + '\\n'\n  + 'Source de la position : ' + d.precision_source + '\\n'\n  + 'Ouvrir dans Google Maps : ' + (d.lien_maps || 'non disponible') + '\\n'\n  + 'Ouvrir dans OpenStreetMap : ' + (d.lien_osm || 'non disponible') + '\\n\\n'\n  + 'DESCRIPTION\\n' + d.description + '\\n\\n'\n  + 'DÉCLARANT\\n'\n  + 'E-mail : ' + d.email + '\\n'\n  + 'Nom : ' + d.nom + '\\n'\n  + 'Téléphone : ' + d.telephone + '\\n\\n'\n  + 'PHOTOS\\n' + photos.length + ' photo(s) en pièce jointe.\\n\\n'\n  + '---\\n'\n  + 'Message émis automatiquement par le formulaire de signalement du site de la ville.\\n'\n  + 'Ce courriel est le seul enregistrement du signalement : ne le supprimez pas avant traitement.\\n'\n  + 'Pour répondre au déclarant, écrivez directement à ' + d.email + '.';\n\nconst entetes = [\n  'To: ' + d.destinataire,\n  'Reply-To: ' + d.email,\n  'Subject: ' + enTete(objet),\n  'MIME-Version: 1.0',\n  'Content-Type: multipart/mixed; boundary=\"' + limite + '\"'\n];\nif (d.archivage) entetes.splice(1, 0, 'Bcc: ' + d.archivage);\n\nlet mime = entetes.join('\\r\\n') + '\\r\\n\\r\\n';\n\n// Corps en base64 : aucun problème d'accent ni de ligne trop longue\nmime += '--' + limite + '\\r\\n'\n  + 'Content-Type: text/plain; charset=\"UTF-8\"\\r\\n'\n  + 'Content-Transfer-Encoding: base64\\r\\n\\r\\n'\n  + plier(b64(corps)) + '\\r\\n';\n\n// Pièces jointes : autant de parties que de photos réellement présentes\nphotos.forEach((p, i) => {\n  const brut = String(p.donnees || '').replace(/^data:[^,]+,/, '');\n  if (!brut) return;\n  const nomFichier = ('photo_' + (i + 1) + '.jpg');\n  mime += '--' + limite + '\\r\\n'\n    + 'Content-Type: image/jpeg; name=\"' + nomFichier + '\"\\r\\n'\n    + 'Content-Disposition: attachment; filename=\"' + nomFichier + '\"\\r\\n'\n    + 'Content-Transfer-Encoding: base64\\r\\n\\r\\n'\n    + plier(brut) + '\\r\\n';\n});\n\nmime += '--' + limite + '--';\n\n// base64url, sans remplissage : format attendu par le champ raw de l'API Gmail\nconst raw = Buffer.from(mime, 'utf8').toString('base64')\n  .replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');\n\nconst json = { ...d };\ndelete json.photos;                 // le payload base64 n'a plus à circuler\njson.nb_photos = photos.length;\njson.objet = objet;\njson.raw = raw;\njson.poids_message_ko = Math.round(raw.length * 3 / 4 / 1024);\n\nreturn [{ json }];"
+      },
+      "id": "5c2bca14-abf1-4853-b018-e341090537cb",
+      "name": "Construction du message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1280,
+        400
+      ],
+      "notes": "Assemble le MIME complet, pièces jointes comprises, et sort le champ raw attendu par l'API Gmail."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "gmailOAuth2",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ raw: $json.raw }) }}",
+        "options": {}
+      },
+      "id": "aab43cdf-0f9c-4374-b908-8fde3fdfa792",
+      "name": "Envoi au service (API Gmail)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1520,
+        400
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "VOTRE_ID_CREDENTIAL",
+          "name": "Votre compte Gmail OAuth2"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "notes": "Utilise le même identifiant Gmail OAuth2 que les autres nœuds. Nombre de pièces jointes libre."
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Construction du message').first().json.destinataire_usager }}",
+        "subject": "={{ $('Construction du message').first().json.prefixe_objet }}Votre signalement {{ $('Construction du message').first().json.reference }} a bien été reçu",
+        "emailType": "text",
+        "message": "={{ $('Construction du message').first().json.entete_maquette }}Bonjour,\n\nVotre signalement a bien été reçu par la ville d'Épinay-sur-Orge.\n\nVotre référence : {{ $('Construction du message').first().json.reference }}\nConservez-la : elle identifie votre demande dans nos échanges.\n\nCE QUE VOUS AVEZ DÉCLARÉ\nCatégorie : {{ $('Construction du message').first().json.categorie }}\nMotif : {{ $('Construction du message').first().json.motif }}\nLieu : {{ $('Construction du message').first().json.adresse }}\nPhotos jointes : {{ $('Construction du message').first().json.nb_photos }}\n\nVotre description :\n{{ $('Construction du message').first().json.description }}\n\nLA SUITE\nVotre signalement a été transmis au service compétent. Il est qualifié sous [délai à confirmer par le service], puis programmé selon son urgence et les moyens disponibles.\n\nCe message accuse réception de votre demande. Il ne vaut pas engagement d'intervention à une date fixe, et ne préjuge pas de la compétence de la commune : certains problèmes relèvent de la Communauté Paris-Saclay, du Conseil départemental de l'Essonne, d'un opérateur de réseau ou d'un propriétaire privé. Vous serez informé si votre demande est transmise.\n\nEn cas de danger immédiat, appelez le 17, le 18 ou le 112.\n\nMairie d'Épinay-sur-Orge\n8 rue de l'Église, 91360 Épinay-sur-Orge\n01 69 10 25 60\ncontact@epinaysurorge.fr\n\nCe message est envoyé automatiquement, merci de ne pas y répondre.",
+        "options": {
+          "appendAttribution": false,
+          "senderName": "={{ $('Construction du message').first().json.nom_expediteur }}"
+        }
+      },
+      "id": "212f3778-e439-43b3-9061-4375df2521f8",
+      "name": "Accusé de réception (Gmail)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1760,
+        400
+      ],
+      "webhookId": "00000000-0000-0000-0000-000000000000",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "VOTRE_ID_CREDENTIAL",
+          "name": "Votre compte Gmail OAuth2"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, reference: $('Construction du message').first().json.reference }) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "43580646-229a-47b7-9002-d3ba4f0f2476",
+      "name": "Réponse succès",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2000,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, message: ($json.erreurs || ['Signalement incomplet.']).join(' ') }) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "c173d4bc-3012-445a-a7bc-d7330459757d",
+      "name": "Réponse rejet",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1280,
+        672
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Construction du message').first().json.admin }}",
+        "subject": "={{ $('Construction du message').first().json.prefixe_objet }}[ALERTE] Signalement {{ $('Construction du message').first().json.reference }} non distribué",
+        "emailType": "text",
+        "message": "=L'envoi du signalement {{ $('Construction du message').first().json.reference }} au service destinataire a échoué.\n\nSans stockage intermédiaire, ce signalement est perdu s'il n'est pas repris manuellement.\n\nDestinataire visé : {{ $('Construction du message').first().json.destinataire }}\nDestinataire en production : {{ $('Construction du message').first().json.cible_production }}\nCatégorie : {{ $('Construction du message').first().json.categorie }} / {{ $('Construction du message').first().json.motif }}\nLieu : {{ $('Construction du message').first().json.adresse }}\nDéclarant : {{ $('Construction du message').first().json.email }}\n\nDescription :\n{{ $('Construction du message').first().json.description }}\n\nErreur renvoyée par l'API Gmail :\n{{ JSON.stringify($json.error || $json) }}\n\nL'usager a reçu un message d'échec et l'invitation à renvoyer son signalement par courriel.",
+        "options": {
+          "appendAttribution": false,
+          "senderName": "={{ $('Construction du message').first().json.nom_expediteur }}"
+        }
+      },
+      "id": "53022257-6808-448d-bedb-42ed7482c0ca",
+      "name": "Alerte administrateur (Gmail)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1760,
+        624
+      ],
+      "webhookId": "00000000-0000-0000-0000-000000000000",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "VOTRE_ID_CREDENTIAL",
+          "name": "Votre compte Gmail OAuth2"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, message: \"L'envoi au service a échoué. Utilisez le repli par courriel.\" }) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "0042f3ef-98fe-4962-aeb1-ebae403b579a",
+      "name": "Réponse échec d'envoi",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2000,
+        624
+      ]
+    }
+  ],
+  "connections": {
+    "Réception du signalement": {
+      "main": [
+        [
+          {
+            "node": "Table de routage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Table de routage": {
+      "main": [
+        [
+          {
+            "node": "Validation et routage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validation et routage": {
+      "main": [
+        [
+          {
+            "node": "Signalement valide ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Signalement valide ?": {
+      "main": [
+        [
+          {
+            "node": "Construction du message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Réponse rejet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Construction du message": {
+      "main": [
+        [
+          {
+            "node": "Envoi au service (API Gmail)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Envoi au service (API Gmail)": {
+      "main": [
+        [
+          {
+            "node": "Accusé de réception (Gmail)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Alerte administrateur (Gmail)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Accusé de réception (Gmail)": {
+      "main": [
+        [
+          {
+            "node": "Réponse succès",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alerte administrateur (Gmail)": {
+      "main": [
+        [
+          {
+            "node": "Réponse échec d'envoi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

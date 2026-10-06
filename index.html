@@ -1,0 +1,2698 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Signaler un problème · Ville d'Épinay-sur-Orge</title>
+<meta name="description" content="Déclarez un problème sur l'espace public à Épinay-sur-Orge : voirie, éclairage, propreté, espaces verts. Sans compte et sans application.">
+<meta name="robots" content="index, follow">
+<meta property="og:title" content="Signaler un problème · Ville d'Épinay-sur-Orge">
+<meta property="og:description" content="Déclarez un problème sur l'espace public en moins de deux minutes.">
+<meta property="og:type" content="website">
+<!-- Couleur d'interface du navigateur alignée sur le bandeau marine. -->
+<meta name="theme-color" content="#0C173E">
+
+<!-- Favicons et icônes d'application (mêmes fichiers, à la racine du site) -->
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="96x96" href="favicon-96x96.png">
+<link rel="icon" type="image/png" sizes="256x256" href="favicon-256x256.png">
+<link rel="icon" type="image/png" sizes="192x192" href="android-icon-192x192.png">
+<link rel="apple-touch-icon" sizes="57x57" href="apple-icon-57x57.png">
+<link rel="apple-touch-icon" sizes="60x60" href="apple-icon-60x60.png">
+<link rel="apple-touch-icon" sizes="72x72" href="apple-icon-72x72.png">
+<link rel="apple-touch-icon" sizes="76x76" href="apple-icon-76x76.png">
+<link rel="apple-touch-icon" sizes="114x114" href="apple-icon-114x114.png">
+<link rel="apple-touch-icon" sizes="120x120" href="apple-icon-120x120.png">
+<link rel="apple-touch-icon" sizes="144x144" href="apple-icon-144x144.png">
+<link rel="apple-touch-icon" sizes="152x152" href="apple-icon-152x152.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-icon-180x180.png">
+<meta name="msapplication-TileColor" content="#0C173E">
+<meta name="msapplication-TileImage" content="ms-icon-144x144.png">
+<meta name="apple-mobile-web-app-title" content="Signalement Épinay">
+<meta name="application-name" content="Signalement Épinay">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Montserrat par CDN. Si l'auto-hébergement est possible, remplacer ce lien par un @font-face local. -->
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&display=swap" rel="stylesheet">
+<!-- Leaflet par CDN (cdnjs). Si le chargement échoue, la carte est remplacée par un message
+     et le champ adresse suffit à localiser. -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" crossorigin="anonymous">
+
+<style>
+/* ============================================================
+   1. JETONS DE CHARTE (repris de fibre.epinaysurorge.fr)
+   ============================================================ */
+:root{
+  --bleu:#1BA7DC;          /* DÉCOR SEUL : filets, bordures, aplats sans texte dessus (2,8:1) */
+  --bleu-bouton:#0C7BA8;   /* fonds de bouton : texte blanc dessus à 4,8:1 */
+  --bleu-fonce:#0A6D96;    /* texte et liens sur fond clair : 5,8:1 */
+  --bleu-clair:#B8E0F2;
+  --bleu-entete:#0C173E;   /* bleu marine (bandeau + boutons) : blanc dessus ~17:1 */
+  --bleu-entete-fonce:#060C22;
+  --titre:#0F172A;
+  --texte:#475569;
+  --mention:#64748B;      /* texte secondaire : 4,8:1 sur blanc, 4,6:1 sur le fond */
+  --bordure:#E2E8F0;
+  --alerte:#D97706;
+  --alerte-fonce:#92400E;
+  --succes:#059669;
+  --fond:#F8FAFC;
+  --blanc:#FFFFFF;
+  --r:12px;
+  --ombre:0 1px 2px rgba(15,23,42,.04), 0 4px 16px rgba(15,23,42,.06);
+  --ombre-flottante:0 10px 30px rgba(15,23,42,.14);
+
+  /* Durées. Aucune valeur n'est arbitraire :
+     appui = réponse au doigt, doit être imperceptible ;
+     état  = apparition d'un encart, d'une suggestion ;
+     vue   = seul changement qui a le droit de dépasser le quart de seconde. */
+  --t-appui:100ms;
+  --t-etat:170ms;
+  --t-vue:280ms;
+
+  /* Deux courbes miroir : ce qui entre par un chemin repart par le même.
+     (1-x2, 1-y2, 1-x1, 1-y1) de l'une donne exactement l'autre. */
+  --entree:cubic-bezier(.32,.72,0,1);
+  --sortie:cubic-bezier(1,0,.68,.28);
+}
+
+/* ============================================================
+   2. BASE
+   ============================================================ */
+*,*::before,*::after{box-sizing:border-box}
+/* L'attribut hidden doit toujours l'emporter : sans cela, une classe qui pose
+   display:grid/flex/block réaffiche un élément qu'on vient de masquer en JS. */
+[hidden]{display:none!important}
+/* Application verrouillée à la hauteur du device : aucun défilement de page.
+   Chaque écran occupe exactement la fenêtre visible et se succède à l'autre. */
+html,body{height:100%;overflow:hidden}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;background:var(--blanc);color:var(--texte);
+  font-family:'Montserrat',system-ui,-apple-system,'Segoe UI',sans-serif;
+  /* Pourcentage et non 16px : la taille de texte réglée par l'utilisateur
+     dans son navigateur ou son système est respectée, et toute la mise en
+     page suit puisqu'elle est exprimée en rem. */
+  font-size:100%;line-height:1.65;font-weight:400;
+}
+
+/* Montserrat n'a pas d'axe de taille optique : l'approche doit donc être
+   réglée à la main pour chaque niveau, serrée en grand, ouverte en petit. */
+h1,h2,h3{color:var(--titre);font-weight:800;margin:0}
+h1{font-size:clamp(1.75rem,1.36rem + 1.75vw,2.3rem);line-height:1.12;letter-spacing:-.022em}
+h2{font-size:1.35rem;line-height:1.25;letter-spacing:-.012em}
+h3{font-size:1rem;line-height:1.35;font-weight:700;letter-spacing:-.004em}
+p{margin:0 0 1rem}
+a{color:var(--bleu-fonce);text-decoration:underline;text-underline-offset:2px;touch-action:manipulation}
+a:hover{color:#084F6D}
+img{max-width:100%;display:block}
+:focus-visible{outline:3px solid var(--bleu-fonce);outline-offset:2px;border-radius:4px}
+
+[id]{scroll-margin-top:1rem}
+
+.enveloppe{max-width:none;margin:0;padding:0 1.15rem}
+.saut-lien{position:absolute;left:-9999px;top:0;background:var(--blanc);padding:.75rem 1rem;z-index:1000}
+.saut-lien:focus{left:.5rem;top:.5rem}
+.visuellement-cache{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+
+/* Surtitre de section, pattern repris de la page fibre */
+.surtitre{
+  font-size:.7rem;font-weight:700;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--bleu-fonce);margin:0 0 .6rem;
+}
+
+/* Chapeau avec filet gauche bleu */
+.chapeau{
+  border-left:3px solid var(--bleu);padding-left:.95rem;margin:0;
+  font-size:1.02rem;letter-spacing:.004em;
+}
+
+/* ============================================================
+   4. ÉCRANS : ENTÊTE BLEU FIXE, CONTENU DÉFILANT, PIED FIXE
+   ============================================================ */
+main{position:fixed;inset:0;overflow:hidden}
+.enveloppe{position:absolute;inset:0;max-width:none;margin:0;padding:0}
+.section{margin:0}
+.carte{padding:0}
+
+/* Une vue = un écran plein cadre en trois bandes verticales. Seule la bande
+   centrale défile ; l'entête bleu et le pied d'action restent fixes. */
+.vue{
+  position:absolute;inset:0;
+  display:flex;flex-direction:column;
+  transition:opacity var(--t-vue) ease, transform var(--t-vue) var(--entree);
+}
+.vue[hidden]{display:none}
+.vue.sort{opacity:0;transform:translateY(-10px);transition-timing-function:var(--sortie)}
+.vue.entre{opacity:0;transform:translateY(12px);transition:none}
+
+/* --- Entête bleu institutionnel (bord à bord) --- */
+.ecran-entete{
+  flex:0 0 auto;background:var(--bleu-entete);color:#fff;
+  padding:calc(env(safe-area-inset-top) + .95rem) 1.15rem .95rem;
+}
+.ecran-entete .surtitre{color:rgba(255,255,255,.82)}
+/* Barre d'étape réduite : chevron retour + libellé + jauge de progression */
+.entete-ligne{display:flex;align-items:center;gap:.75rem}
+.entete-retour{
+  flex:0 0 auto;width:34px;height:34px;margin-left:-.4rem;border-radius:9px;border:0;
+  background:none;color:#fff;display:grid;place-items:center;cursor:pointer;
+  touch-action:manipulation;transition:background-color var(--t-appui) ease, transform var(--t-appui) var(--entree);
+}
+.entete-retour:active{transform:scale(.9)}
+@media (hover:hover){ .entete-retour:hover{background:rgba(255,255,255,.14)} }
+.entete-titre{font-size:.75rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#fff}
+.entete-barre{height:4px;background:rgba(255,255,255,.28);border-radius:2px;overflow:hidden;margin-top:.6rem}
+.entete-barre-jauge{height:100%;background:#fff;border-radius:2px}
+
+/* Hero de l'accueil : logo + intitulés + titre, en blanc sur bleu */
+.entete-hero{padding:calc(env(safe-area-inset-top) + 1.7rem) 1.15rem 1.8rem}
+.entete-hero .logo-entete{height:46px;width:auto;margin:0 0 1.4rem}
+.entete-hero h1{color:#fff;margin:.15rem 0 .6rem}
+.entete-hero .hero-sous{color:rgba(255,255,255,.9);margin:0;font-size:1rem;line-height:1.5}
+.entete-hero .surtitre{margin:0 0 .3rem}
+
+/* Entête de confirmation : logo seul, centré à gauche */
+.entete-logo-seul{display:flex;align-items:center;min-height:52px}
+.entete-logo-seul .logo-entete{height:40px;width:auto}
+
+/* --- Contenu défilant --- */
+.ecran-contenu{
+  flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  padding:1.35rem 1.15rem 1.5rem;
+}
+.ecran-contenu > h2{margin-bottom:.3rem}
+
+/* --- Pied d'action fixe --- */
+.ecran-pied{
+  flex:0 0 auto;background:var(--blanc);border-top:1px solid var(--bordure);
+  padding:.85rem 1.15rem calc(env(safe-area-inset-bottom) + .9rem);
+}
+.ecran-pied .bouton{margin:0 auto}
+.ecran-pied .aide{text-align:center;margin:.55rem 0 0}
+
+/* Encart d'urgence */
+.urgence{
+  background:#FFFBEB;border:1px solid #FDE68A;border-radius:var(--r);padding:1.05rem 1.15rem;
+  margin:0 0 1.25rem;
+}
+.urgence h2{font-size:.95rem;color:var(--alerte-fonce);margin:0 0 .45rem;letter-spacing:0}
+.urgence p{margin:0 0 .5rem;font-size:.92rem;color:var(--alerte-fonce)}
+.urgence p:last-child{margin:0}
+.urgence strong{font-weight:700}
+
+/* Encart d'information de compétence */
+.encart-info{
+  background:#F0F9FF;border:1px solid var(--bleu-clair);border-radius:10px;
+  padding:.85rem .95rem;margin:.75rem 0 0;font-size:.9rem;color:#0c4a6e;
+  animation:glissement var(--t-etat) var(--entree);
+}
+.encart-info strong{display:block;margin-bottom:.15rem;color:#0c4a6e}
+.encart-info .actions{display:flex;flex-wrap:wrap;gap:.5rem;margin:.7rem 0 0}
+.encart-info .actions .bouton{width:auto;flex:0 0 auto;font-size:.88rem;padding:.55rem .9rem;min-height:44px}
+
+@keyframes glissement{
+  from{opacity:0;transform:translateY(-6px)}
+  to{opacity:1;transform:none}
+}
+
+/* Encart d'erreur orange, pattern /technicien */
+.encart-erreur{
+  background:#FFF7ED;border:1px solid var(--alerte);border-radius:var(--r);
+  padding:1.05rem 1.15rem;margin:0 0 1.1rem;color:var(--alerte-fonce);
+  animation:glissement var(--t-etat) var(--entree);
+}
+.encart-erreur h3{color:var(--alerte-fonce);margin:0 0 .4rem}
+.encart-erreur p{font-size:.92rem;margin:0 0 .7rem}
+.encart-erreur ul{margin:.3rem 0 .8rem;padding-left:1.15rem;font-size:.92rem}
+.encart-erreur a{color:var(--alerte-fonce);font-weight:700}
+
+/* ============================================================
+   5. FORMULAIRE
+   ============================================================ */
+.champ{margin:0 0 1.15rem}
+.champ:last-of-type{margin-bottom:0}
+label,.libelle{
+  display:block;font-weight:700;color:var(--titre);font-size:.92rem;margin:0 0 .35rem;
+  letter-spacing:.004em;
+}
+/* Les textes courts et petits demandent un peu d'air entre les lettres. */
+.aide{display:block;font-size:.82rem;color:var(--mention);font-weight:400;margin:.25rem 0 0;line-height:1.5;letter-spacing:.01em}
+.aide-avant{margin:0 0 .45rem}
+
+input[type=text],input[type=email],input[type=tel],select,textarea{
+  width:100%;font-family:inherit;font-size:1rem;color:var(--titre);
+  background:var(--blanc);border:1px solid var(--bordure);border-radius:10px;
+  padding:.72rem .85rem;min-height:46px;line-height:1.4;
+  -webkit-appearance:none;appearance:none;touch-action:manipulation;
+  transition:border-color var(--t-etat) ease, background-color var(--t-etat) ease;
+}
+select{
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='9' viewBox='0 0 14 9'%3E%3Cpath fill='none' stroke='%230F172A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' d='M1 1.5l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right .9rem center;padding-right:2.4rem;
+}
+textarea{min-height:clamp(96px,14vh,140px);resize:vertical}
+input:focus,select:focus,textarea:focus{border-color:var(--bleu-fonce);outline:3px solid rgba(10,109,150,.25);outline-offset:0}
+input.invalide,select.invalide,textarea.invalide{border-color:var(--alerte);background:#FFFBF5}
+
+/* Message de contrôle attaché au champ lui-même, et non renvoyé en tête de page. */
+.erreur-champ{
+  display:block;font-size:.84rem;font-weight:700;color:var(--alerte-fonce);
+  margin:.35rem 0 0;letter-spacing:.008em;line-height:1.45;
+  animation:glissement var(--t-etat) var(--entree);
+}
+.erreur-champ::before{content:"! ";font-weight:800}
+
+.compteur{font-size:.8rem;color:var(--mention);text-align:right;margin:.3rem 0 0;letter-spacing:.01em}
+.compteur.trop{color:var(--alerte-fonce);font-weight:700}
+
+/* Case à cocher RGPD */
+.case{display:flex;gap:.7rem;align-items:flex-start}
+.case input[type=checkbox]{
+  flex:0 0 22px;width:22px;height:22px;margin:.15rem 0 0;accent-color:var(--bleu-bouton);
+  touch-action:manipulation;transition:transform var(--t-appui) var(--entree);
+}
+.case input[type=checkbox]:active{transform:scale(.9)}
+.case label{font-weight:400;font-size:.9rem;color:var(--texte);margin:0;line-height:1.55;letter-spacing:.004em}
+
+/* Boutons */
+.bouton{
+  display:flex;align-items:center;justify-content:center;gap:.5rem;
+  font-family:inherit;font-size:1rem;font-weight:700;
+  background:var(--bleu-entete);color:#fff;border:1px solid var(--bleu-entete);
+  border-radius:10px;padding:.85rem 1.4rem;min-height:48px;
+  cursor:pointer;text-decoration:none;
+  width:100%;max-width:360px;margin-left:auto;margin-right:auto;
+  touch-action:manipulation;-webkit-tap-highlight-color:transparent;
+  transition:background-color var(--t-etat) ease, border-color var(--t-etat) ease,
+             transform var(--t-appui) var(--entree);
+}
+/* La réaction se produit à l'appui, pas au relâchement. */
+.bouton:active{transform:scale(.97)}
+@media (hover:hover){
+  .bouton:hover{background:var(--bleu-entete-fonce);border-color:var(--bleu-entete-fonce);color:#fff}
+}
+.bouton[disabled]{background:#AEB9D4;border-color:#AEB9D4;color:#fff;cursor:not-allowed;transform:none}
+.bouton-secondaire{
+  background:var(--blanc);color:var(--bleu-entete);border:1px solid var(--bordure);font-weight:700;
+}
+@media (hover:hover){
+  .bouton-secondaire:hover{background:#F1F5FB;color:var(--bleu-entete-fonce);border-color:#C7D2E6}
+}
+.bouton-secondaire:active{background:#E9EFF8}
+.bouton-discret{
+  background:none;border:0;padding:.5rem 0;min-height:44px;
+  color:var(--bleu-entete);font-family:inherit;font-size:.9rem;font-weight:700;
+  text-decoration:underline;cursor:pointer;width:auto;touch-action:manipulation;
+  transition:transform var(--t-appui) var(--entree), color var(--t-etat) ease;
+}
+.bouton-discret:active{transform:scale(.97)}
+
+/* Indicateur d'activité, réservé aux attentes réellement bloquantes */
+.rotor{
+  width:18px;height:18px;flex:0 0 18px;border-radius:50%;
+  border:2px solid rgba(255,255,255,.4);border-top-color:#fff;
+  animation:rotation .7s linear infinite;
+}
+@keyframes rotation{to{transform:rotate(360deg)}}
+
+/* Résumé des erreurs en tête de formulaire */
+.resume-erreurs{
+  background:#FFF7ED;border:1px solid var(--alerte);border-radius:var(--r);
+  padding:1rem 1.1rem;margin:0 0 1.2rem;color:var(--alerte-fonce);
+  animation:glissement var(--t-etat) var(--entree);
+}
+.resume-erreurs h2{font-size:.98rem;color:var(--alerte-fonce);margin:0 0 .5rem;letter-spacing:0}
+.resume-erreurs ul{margin:0;padding-left:1.15rem;font-size:.92rem}
+.resume-erreurs li{margin:0 0 .25rem}
+.resume-erreurs a{color:var(--alerte-fonce);font-weight:700}
+
+/* ============================================================
+   6. LOCALISATION
+   ============================================================ */
+.bloc-adresse{position:relative}
+.suggestions{
+  list-style:none;margin:.25rem 0 0;padding:.25rem;position:absolute;z-index:900;
+  left:0;right:0;background:var(--blanc);border:1px solid var(--bordure);
+  border-radius:10px;box-shadow:var(--ombre-flottante);max-height:260px;overflow:auto;
+  /* La liste naît du champ qui la produit, pas du milieu de l'écran. */
+  transform-origin:top center;
+  animation:eclosion var(--t-etat) var(--entree);
+}
+@keyframes eclosion{
+  from{opacity:0;transform:translateY(-6px) scale(.985)}
+  to{opacity:1;transform:none}
+}
+.suggestions[hidden]{display:none}
+.suggestions li{
+  margin:0;padding:.65rem .7rem;min-height:44px;display:flex;align-items:center;
+  border-radius:8px;font-size:.92rem;color:var(--titre);cursor:pointer;
+  touch-action:manipulation;transition:background-color var(--t-appui) ease;
+}
+.suggestions li:hover,.suggestions li[aria-selected="true"]{background:#EFF9FE;color:var(--bleu-fonce)}
+.suggestions li:active{background:#DDF0FA}
+
+#carte{
+  height:clamp(220px,38vh,340px);border:1px solid var(--bordure);border-radius:10px;margin:.85rem 0 0;
+  background:#EDF2F7;
+}
+.outils-carte{display:flex;flex-wrap:wrap;gap:.6rem;margin:.75rem 0 0}
+.outils-carte .bouton{width:auto;flex:1 1 auto;font-size:.9rem;padding:.7rem 1rem;min-height:46px}
+/* Le bouton d'effacement est placé contre l'information qu'il efface. */
+.position-retenue{
+  margin:.75rem 0 0;font-size:.88rem;color:var(--titre);
+  background:#F1F9FD;border:1px solid var(--bleu-clair);border-radius:10px;padding:.7rem .85rem;
+  transition:background-color var(--t-etat) ease, border-color var(--t-etat) ease;
+}
+.position-retenue.vide{background:var(--fond);border-color:var(--bordure);color:var(--mention)}
+.bloc-position{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin:.75rem 0 0}
+.bloc-position .position-retenue{flex:1 1 260px;margin:0}
+.bloc-position .bouton{width:auto;flex:0 0 auto;font-size:.88rem;padding:.6rem .9rem;min-height:44px}
+
+/* ============================================================
+   7. PHOTOS
+   ============================================================ */
+.depose{
+  border:1px dashed var(--bleu-clair);background:#F7FCFE;border-radius:10px;
+  padding:1.1rem;text-align:center;
+  transition:background-color var(--t-etat) ease, border-color var(--t-etat) ease;
+}
+/* La zone a l'apparence d'un réceptacle : elle en a désormais le comportement. */
+.depose.survol{background:#E3F4FD;border-color:var(--bleu-bouton);border-style:solid}
+.depose .bouton-secondaire{width:auto}
+.depose p{margin:.6rem 0 0;font-size:.85rem;color:var(--mention);letter-spacing:.01em}
+.vignettes{list-style:none;display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:.7rem;margin:.85rem 0 0;padding:0}
+.vignettes:empty{display:none}
+.vignette{position:relative;border:1px solid var(--bordure);border-radius:10px;overflow:hidden;background:var(--blanc)}
+.vignette img{width:100%;height:96px;object-fit:cover}
+.vignette .poids{display:block;font-size:.7rem;color:var(--mention);padding:.25rem .4rem;text-align:center;letter-spacing:.01em}
+.vignette button{
+  position:absolute;top:5px;right:5px;width:36px;height:36px;border-radius:9px;
+  background:rgba(15,23,42,.78);color:#fff;border:0;font-size:1.05rem;line-height:1;cursor:pointer;
+  display:grid;place-items:center;touch-action:manipulation;
+  transition:background-color var(--t-appui) ease, transform var(--t-appui) var(--entree);
+}
+/* Cible tactile portée à 48px sans grossir le bouton visible. */
+.vignette button::after{content:"";position:absolute;inset:-6px}
+.vignette button:active{transform:scale(.9)}
+@media (hover:hover){
+  .vignette button:hover{background:var(--alerte-fonce)}
+}
+
+/* Retrait réversible : un geste raté se répare, il ne se confirme pas d'avance. */
+.annulation{
+  display:flex;flex-wrap:wrap;align-items:center;gap:.6rem;
+  background:var(--fond);border:1px solid var(--bordure);border-radius:10px;
+  padding:.6rem .75rem;margin:.75rem 0 0;font-size:.88rem;color:var(--titre);
+  animation:glissement var(--t-etat) var(--entree);
+}
+.annulation .bouton-discret{padding:0;min-height:36px}
+.etat-photos{margin:.5rem 0 0}
+
+/* ============================================================
+   8. RENVOI FIBRE
+   ============================================================ */
+.renvoi{
+  background:var(--fond);border:1px solid var(--bordure);
+  border-radius:var(--r);padding:1.4rem 1.25rem;
+}
+.renvoi h2{margin:0 0 .7rem;font-size:1.15rem}
+.renvoi .bouton{margin:.35rem 0 .85rem}
+
+/* ============================================================
+   9. CONFIRMATION (sobre, sans liseré coloré)
+   ============================================================ */
+.confirmation{
+  background:var(--fond);border:1px solid var(--bordure);
+  border-radius:var(--r);padding:1.4rem 1.25rem;
+}
+.confirmation .surtitre{color:var(--succes)}
+.confirmation h2{color:var(--titre);margin:0 0 .7rem}
+.reference{
+  display:inline-block;font-weight:800;font-size:1.05rem;letter-spacing:.04em;color:var(--titre);
+  background:var(--blanc);border:1px solid var(--bordure);border-radius:8px;padding:.5rem .8rem;margin:0 0 1rem;
+}
+/* Récapitulatif : neutre par défaut (étape de vérification comme confirmation) */
+.recap{list-style:none;margin:0;padding:0;font-size:.92rem}
+.recap li{padding:.7rem 0;border-bottom:1px solid var(--bordure)}
+.recap li:last-child{border-bottom:0}
+.recap strong{color:var(--mention);display:block;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:.15rem}
+/* Rubrique « après l'envoi » intégrée en bas de la confirmation */
+.apres-envoi{margin-top:1.3rem;padding-top:1.2rem;border-top:1px solid var(--bordure)}
+.apres-envoi .surtitre{margin-top:0}
+
+/* ============================================================
+   10. ÉTAPES ET EXCLUSIONS
+   ============================================================ */
+.etapes{list-style:none;margin:0;padding:0;counter-reset:etape}
+.etapes li{
+  position:relative;padding:0 0 1.15rem 2.7rem;counter-increment:etape;
+}
+.etapes li::before{
+  content:counter(etape);position:absolute;left:0;top:0;
+  width:30px;height:30px;border-radius:8px;background:var(--bleu-bouton);color:#fff;
+  display:grid;place-items:center;font-weight:800;font-size:.85rem;
+}
+.etapes li::after{
+  content:"";position:absolute;left:14px;top:34px;bottom:6px;width:2px;background:var(--bordure);
+}
+.etapes li:last-child{padding-bottom:0}
+.etapes li:last-child::after{display:none}
+.etapes h3{margin:.25rem 0 .2rem}
+.etapes p{margin:0;font-size:.92rem}
+
+.exclusions{list-style:none;margin:0;padding:0}
+.exclusions li{
+  padding:.75rem 0;border-bottom:1px solid var(--bordure);font-size:.92rem;
+}
+.exclusions li:last-child{border-bottom:0}
+.exclusions strong{display:block;color:var(--titre);font-size:.95rem}
+
+/* ============================================================
+   11. RGPD ET PIED DE PAGE
+   ============================================================ */
+.rgpd{
+  background:var(--fond);border:1px solid var(--bordure);border-radius:10px;
+  padding:1rem 1.1rem;margin:1.2rem 0 0;font-size:.82rem;color:var(--mention);line-height:1.6;
+  letter-spacing:.01em;
+}
+.rgpd h3{font-size:.78rem;text-transform:uppercase;letter-spacing:.1em;color:var(--texte);margin:0 0 .45rem}
+.rgpd p{margin:0 0 .5rem}
+.rgpd p:last-child{margin:0}
+
+/* ============================================================
+   12. PRÉFÉRENCES SYSTÈME
+   ============================================================ */
+/* Mouvement réduit ne veut pas dire aucun retour : les déplacements et les
+   mises à l'échelle disparaissent, les fondus courts restent, car ils portent
+   l'information « ceci vient d'apparaître ». */
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  .bouton:active,.bouton-secondaire:active,.bouton-discret:active,
+  .vignette button:active,.case input[type=checkbox]:active{transform:none}
+  .vue,.vue.sort,.vue.entre{transform:none!important;transition:opacity 150ms ease}
+  .suggestions,.encart-info,.encart-erreur,.resume-erreurs,.erreur-champ,.annulation{
+    animation:aucun-mouvement 150ms ease;
+  }
+  @keyframes aucun-mouvement{from{opacity:0}to{opacity:1}}
+  .rotor{animation:none;border-top-color:rgba(255,255,255,.95);border-width:3px}
+  .bouton-categorie{transition:opacity 150ms ease}
+}
+
+@media (prefers-contrast:more){
+  .carte,.suggestions,input[type=text],input[type=email],input[type=tel],select,textarea{border-color:#94A3B8}
+  .aide,.compteur,.rgpd,.depose p{color:#334155}
+  .position-retenue.vide{color:#334155}
+  a{text-decoration-thickness:2px}
+}
+
+/* ============================================================
+   13. LOGO, GRILLES DE CATÉGORIES, MODALE
+   ============================================================ */
+/* Logo blanc en lockup : marque en losanges + nom sur deux registres */
+.logo-img{height:46px;width:auto}
+.logo-img[hidden]{display:none}
+.entete-hero .logo-img{margin-bottom:1.4rem}
+.entete-logo-seul .logo-img{height:40px}
+.logo-entete{display:inline-flex;align-items:center;gap:.6rem}
+.logo-entete .logo-mark{width:42px;height:42px;flex:0 0 auto}
+.logo-entete .logo-mot{display:flex;flex-direction:column;line-height:.92;color:#fff}
+.logo-entete .logo-mot b{font-weight:800;font-size:1.32rem;letter-spacing:-.01em}
+.logo-entete .logo-mot i{
+  font-style:normal;font-weight:700;font-size:.62rem;letter-spacing:.06em;
+  text-transform:lowercase;margin:.06rem 0;color:rgba(255,255,255,.9);
+}
+.entete-hero .logo-entete{margin-bottom:1.4rem}
+
+/* Modale d'information : superposition sombre + panneau centré avec croix */
+.modale-fond{
+  position:fixed;inset:0;z-index:1200;background:rgba(15,23,42,.5);
+  display:flex;align-items:center;justify-content:center;padding:1.15rem;
+  animation:fond-apparait var(--t-etat) ease;
+}
+.modale-fond[hidden]{display:none}
+@keyframes fond-apparait{from{opacity:0}to{opacity:1}}
+.modale{
+  position:relative;background:var(--blanc);border-radius:16px;
+  padding:1.5rem 1.35rem 1.35rem;width:100%;max-width:440px;
+  max-height:85vh;max-height:85dvh;overflow:auto;
+  box-shadow:var(--ombre-flottante);
+  animation:modale-apparait var(--t-vue) var(--entree);
+}
+@keyframes modale-apparait{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+.modale-fermer{
+  position:absolute;top:.6rem;right:.6rem;width:44px;height:44px;border-radius:10px;border:0;
+  background:none;color:var(--titre);display:grid;place-items:center;cursor:pointer;
+  touch-action:manipulation;transition:background-color var(--t-appui) ease, transform var(--t-appui) var(--entree);
+}
+.modale-fermer:active{transform:scale(.9)}
+@media (hover:hover){ .modale-fermer:hover{background:var(--fond)} }
+.modale .surtitre{margin-top:0}
+.modale .exclusions li:last-child{border-bottom:0}
+@media (prefers-reduced-motion:reduce){
+  .modale-fond,.modale{animation:fond-apparait 120ms ease}
+}
+
+/* Grille de catégories : icône + texte, jamais l'un sans l'autre */
+.grille-categories{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.7rem;margin:0 0 .3rem;
+}
+.bouton-categorie{
+  display:flex;flex-direction:column;align-items:center;gap:.5rem;text-align:center;
+  padding:1rem .6rem;border:1px solid var(--bordure);border-radius:var(--r);background:var(--blanc);
+  font-family:inherit;font-size:.85rem;font-weight:700;color:var(--titre);cursor:pointer;
+  touch-action:manipulation;-webkit-tap-highlight-color:transparent;
+  transition:opacity var(--t-etat) ease, transform var(--t-etat) ease,
+             border-color var(--t-etat) ease, background-color var(--t-etat) ease;
+}
+.bouton-categorie.masquee{opacity:0;transform:scale(.85);pointer-events:none}
+.bouton-categorie[hidden]{display:none}
+
+/* Catégorie repliée en chip (bord bleu, fond bleu très clair) */
+.chip-categorie{
+  display:block;width:100%;text-align:left;border:2px solid var(--bleu-entete);
+  background:#EEF3FB;border-radius:var(--r);padding:.8rem 1rem;cursor:pointer;
+  font-family:inherit;margin:0;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
+}
+.chip-categorie[hidden]{display:none}
+.chip-label{display:block;font-size:.66rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--bleu-entete)}
+.chip-nom{display:block;font-size:1.02rem;font-weight:700;color:var(--bleu-entete-fonce);margin-top:.15rem}
+.bouton-categorie svg{width:26px;height:26px;color:var(--bleu-bouton)}
+.bouton-categorie:active{transform:scale(.96)}
+@media (hover:hover){
+  .bouton-categorie:hover{border-color:var(--bleu);background:#F7FCFE}
+}
+.bouton-categorie.selectionnee{
+  border-color:var(--bleu-entete);border-width:2px;background:#EEF3FB;color:var(--bleu-entete-fonce);
+}
+.bouton-categorie.selectionnee svg{color:var(--bleu-entete-fonce)}
+
+#bloc-motif-inline{animation:glissement var(--t-etat) var(--entree)}
+
+/* Grille de motifs : chips pleine largeur, une colonne */
+.grille-motifs{display:flex;flex-direction:column;gap:.55rem;margin:0 0 .3rem}
+.bouton-motif{
+  display:block;width:100%;text-align:left;padding:.85rem 1rem;border:1px solid var(--bordure);
+  border-radius:10px;background:var(--blanc);font-family:inherit;font-size:.92rem;font-weight:600;
+  color:var(--titre);cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
+  transition:border-color var(--t-etat) ease, background-color var(--t-etat) ease;
+}
+@media (hover:hover){
+  .bouton-motif:hover{border-color:var(--bleu-entete);background:#F5F8FC}
+}
+.bouton-motif.selectionnee{
+  border-color:var(--bleu-entete);border-width:2px;background:#EEF3FB;color:var(--bleu-entete-fonce);
+}
+
+/* Accordéon RGPD, replié par défaut */
+.accordeon-rgpd{margin:1.2rem 0 0;border:1px solid var(--bordure);border-radius:10px;padding:.15rem .95rem}
+.accordeon-rgpd summary{
+  padding:.75rem 0;font-size:.85rem;font-weight:700;color:var(--bleu-fonce);cursor:pointer;
+  list-style:none;
+}
+.accordeon-rgpd summary::-webkit-details-marker{display:none}
+.accordeon-rgpd summary::before{content:"+ ";font-weight:800}
+.accordeon-rgpd[open] summary::before{content:"– "}
+.accordeon-rgpd .rgpd{border:0;padding:0 0 .9rem;margin:0;background:none}
+
+/* Récapitulatif : chaque ligne peut renvoyer vers l'étape qui la produit */
+.recap li{display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem}
+.recap li .modifier-recap{flex:0 0 auto;padding:0;min-height:auto;font-size:.82rem}
+
+/* ============================================================
+   14. MISE EN PAGE ORDINATEUR
+   Sur grand écran, l'application n'est plus étirée bord à bord :
+   elle est présentée comme une fenêtre centrée, à la manière d'un
+   téléphone posé sur la page. Le comportement (écrans, défilement
+   interne, bandeau et bouton fixes) reste identique.
+   ============================================================ */
+@media (min-width:768px) and (min-height:640px){
+  body{background:#E7ECF3}
+  main{display:flex;align-items:center;justify-content:center;padding:2rem;overflow:auto}
+  .enveloppe{
+    position:relative;inset:auto;
+    /* Largeur reprise d'un formulaire Microsoft Forms sur ordinateur. */
+    width:100%;max-width:720px;height:min(920px,calc(100vh - 4rem));
+    background:var(--blanc);border-radius:26px;overflow:hidden;
+    box-shadow:0 24px 70px rgba(15,23,42,.22);
+  }
+  /* Les zones fixes n'ont plus besoin des marges d'encoche du téléphone. */
+  .ecran-entete{padding-top:1.15rem}
+  .entete-hero{padding-top:1.9rem}
+  .ecran-pied{padding-bottom:1.1rem}
+  /* Contenu confortablement large : la lecture reste centrée. */
+  .ecran-contenu > h2,.ecran-contenu > .aide,.ecran-contenu .champ,
+  .ecran-contenu .grille-categories,.ecran-contenu .chip-categorie,
+  .ecran-contenu #bloc-motif-inline,.ecran-contenu fieldset{max-width:640px;margin-left:auto;margin-right:auto}
+  /* La modale reste centrée sur toute la fenêtre du navigateur. */
+}
+</style>
+</head>
+
+<body>
+<a class="saut-lien" href="#formulaire">Aller au formulaire</a>
+
+<main>
+  <div class="enveloppe">
+
+    <!-- ===== Écran d'accueil ===== -->
+    <section class="section vue" id="bloc-accueil">
+      <header class="ecran-entete entete-hero">
+        <img class="logo-img" data-logo alt="Ville d'Épinay-sur-Orge" hidden>
+        <div class="logo-entete" data-logo-svg role="img" aria-label="Ville d'Épinay-sur-Orge">
+          <svg class="logo-mark" viewBox="0 0 46 46" aria-hidden="true" focusable="false">
+            <path d="M11 23 L18 12 L25 23 L18 34 Z" fill="rgba(255,255,255,.45)"/>
+            <path d="M18 23 L25 12 L32 23 L25 34 Z" fill="rgba(255,255,255,.72)"/>
+            <path d="M25 23 L32 12 L39 23 L32 34 Z" fill="#ffffff"/>
+          </svg>
+          <span class="logo-mot"><b>Épinay</b><i>sur</i><b>Orge</b></span>
+        </div>
+        <p class="surtitre">Ville d'Épinay-sur-Orge</p>
+        <h1>Signaler un problème</h1>
+        <p class="hero-sous">Lampadaire éteint, dépôt sauvage, trottoir abîmé : signalez-le en 2 minutes, sans compte.</p>
+      </header>
+      <div class="ecran-contenu">
+        <button type="button" class="bouton" id="btn-commencer">
+          Commencer
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+            <path d="M5 12h14M13 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <button type="button" class="bouton-discret" id="lien-fibre-accueil" style="display:block;text-align:center;margin:.9rem auto 1.3rem;width:auto">
+          Un problème de fibre optique ?
+        </button>
+
+        <div class="urgence" role="note">
+          <h2>Ce n'est pas un service d'urgence</h2>
+          <p>
+            Danger immédiat : appelez le <strong>17</strong> (police), le <strong>18</strong> (pompiers) ou le <strong>112</strong>.
+            Hors horaires de mairie, pour un danger sur l'espace public, l'astreinte technique répond au
+            <strong>[numéro d'astreinte à confirmer]</strong>.
+          </p>
+          <button type="button" class="bouton-discret" id="btn-perimetre" aria-haspopup="dialog" aria-expanded="false" aria-controls="hors-perimetre" style="padding:0;min-height:auto;font-size:.85rem">
+            Ce que ce formulaire ne traite pas
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <form id="formulaire" novalidate>
+
+      <!-- Piège à robots, invisible et hors du flux d'accessibilité -->
+      <div class="visuellement-cache" aria-hidden="true">
+        <label for="societe">Ne remplissez pas ce champ</label>
+        <input type="text" id="societe" name="societe" tabindex="-1" autocomplete="off">
+      </div>
+
+      <!-- ===== Étape 1 : problème (catégorie puis motif, sur le même écran) ===== -->
+      <section class="section vue" id="bloc-etape-categorie" hidden>
+        <header class="ecran-entete entete-etape">
+          <div class="entete-ligne">
+            <button type="button" class="entete-retour" data-retour aria-label="Étape précédente">
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
+                <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            <span class="entete-titre">Étape 1 sur 5</span>
+          </div>
+          <div class="entete-barre"><div class="entete-barre-jauge" style="width:20%"></div></div>
+        </header>
+        <div class="ecran-contenu">
+          <h2>Quel est le problème ?</h2>
+          <p class="aide" id="aide-categorie" style="margin:.3rem 0 1.1rem">Choisissez la catégorie qui correspond le mieux, puis le motif précis.</p>
+
+          <!-- Valeur réelle, pilotée par la grille de boutons ci-dessous -->
+          <select id="categorie" name="categorie" required class="visuellement-cache" aria-hidden="true" tabindex="-1">
+            <option value="">Choisissez une catégorie</option>
+          </select>
+
+          <div class="grille-categories" id="grille-categories" role="group" aria-label="Catégorie du signalement"></div>
+
+          <!-- Catégorie choisie, repliée en chip : toucher pour rouvrir la grille -->
+          <button type="button" class="chip-categorie" id="chip-categorie" hidden>
+            <span class="chip-label">Catégorie · toucher pour changer</span>
+            <span class="chip-nom" id="chip-categorie-nom"></span>
+          </button>
+
+          <div id="bloc-motif-inline" hidden>
+            <p class="aide" id="aide-motif" style="margin:1.1rem 0 .8rem">Précisez le motif : ce choix détermine le service qui recevra votre signalement.</p>
+
+            <select id="motif" name="motif" class="visuellement-cache" aria-hidden="true" tabindex="-1">
+              <option value="">Choisissez un motif</option>
+            </select>
+            <div class="grille-motifs" id="grille-motifs" role="group" aria-label="Motif du signalement"></div>
+
+            <!-- Champ libre utilisé pour la catégorie « Autre » -->
+            <div class="champ" id="champ-motif-libre" hidden>
+              <label for="motif-libre">En quelques mots</label>
+              <input type="text" id="motif-libre" name="motif-libre" maxlength="120"
+                     aria-describedby="aide-motif" autocomplete="off">
+            </div>
+
+            <div id="encart-competence" class="encart-info" hidden></div>
+          </div>
+        </div>
+        <footer class="ecran-pied">
+          <button type="button" class="bouton" id="btn-suivant-categorie" disabled>Continuer</button>
+          <p class="aide" id="aide-continuer-categorie">Choisissez une catégorie.</p>
+        </footer>
+      </section>
+
+      <!-- ===== Étape 2 : localisation ===== -->
+      <section class="section vue" id="bloc-etape-lieu" hidden>
+        <header class="ecran-entete entete-etape">
+          <div class="entete-ligne">
+            <button type="button" class="entete-retour" data-retour aria-label="Étape précédente">
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
+                <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            <span class="entete-titre">Étape 2 sur 5</span>
+          </div>
+          <div class="entete-barre"><div class="entete-barre-jauge" style="width:40%"></div></div>
+        </header>
+        <div class="ecran-contenu">
+          <fieldset id="champ-localisation" style="border:0;padding:0;margin:0">
+            <legend class="libelle" style="padding:0;display:block"><h2 style="display:inline">Où se situe le problème ?</h2></legend>
+            <span class="aide aide-avant" id="aide-adresse">
+              Tapez une adresse ou déplacez le repère sur la carte.
+            </span>
+
+            <div class="bloc-adresse">
+              <label for="adresse" class="visuellement-cache">Adresse ou lieu à Épinay-sur-Orge</label>
+              <input type="text" id="adresse" name="adresse" autocomplete="street-address"
+                     role="combobox" aria-expanded="false" aria-autocomplete="list"
+                     aria-controls="suggestions" aria-describedby="aide-adresse"
+                     placeholder="12 rue de l'Église">
+              <ul class="suggestions" id="suggestions" role="listbox" aria-label="Adresses proposées" hidden></ul>
+            </div>
+            <p class="aide" id="etat-adresse" aria-live="polite"></p>
+
+            <div class="outils-carte">
+              <button type="button" class="bouton bouton-secondaire" id="btn-localiser">Me localiser</button>
+            </div>
+
+            <!-- La carte est un confort, jamais le seul moyen de localiser -->
+            <div id="carte" aria-hidden="true"></div>
+
+            <div class="bloc-position">
+              <p class="position-retenue vide" id="position-retenue" aria-live="polite">
+                Aucune position retenue pour l'instant.
+              </p>
+              <button type="button" class="bouton bouton-secondaire" id="btn-effacer-position" hidden>Effacer</button>
+            </div>
+
+            <div class="champ" style="margin:1rem 0 0">
+              <label for="complement">Complément de repère <span style="font-weight:400;color:var(--mention)">(facultatif)</span></label>
+              <input type="text" id="complement" name="complement" maxlength="160"
+                     aria-describedby="aide-complement" autocomplete="off">
+              <span class="aide" id="aide-complement">Numéro de mât, nom de résidence, « face au 14 », « côté parking ».</span>
+            </div>
+          </fieldset>
+        </div>
+        <footer class="ecran-pied">
+          <button type="button" class="bouton" id="btn-suivant-lieu">Continuer</button>
+        </footer>
+      </section>
+
+      <!-- ===== Étape 3 : description et photos ===== -->
+      <section class="section vue" id="bloc-etape-description" hidden>
+        <header class="ecran-entete entete-etape">
+          <div class="entete-ligne">
+            <button type="button" class="entete-retour" data-retour aria-label="Étape précédente">
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
+                <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            <span class="entete-titre">Étape 3 sur 5</span>
+          </div>
+          <div class="entete-barre"><div class="entete-barre-jauge" style="width:60%"></div></div>
+        </header>
+        <div class="ecran-contenu">
+          <h2>Décrivez et illustrez</h2>
+
+          <div class="champ" style="margin-top:1rem">
+            <label for="description">Que voyez-vous ?</label>
+            <textarea id="description" name="description" required minlength="20" maxlength="1500"
+                      aria-describedby="aide-description compteur"></textarea>
+            <p class="compteur" id="compteur" aria-live="off">0 / 1500 caractères</p>
+            <span class="aide" id="aide-description">Depuis quand, et est-ce dangereux ?</span>
+          </div>
+
+          <div class="champ">
+            <span class="libelle" id="libelle-photos">Photos <span style="font-weight:400;color:var(--mention)">(facultatif, 5 maximum)</span></span>
+            <div class="depose" id="depose">
+              <button type="button" class="bouton bouton-secondaire" id="btn-photos">Ajouter des photos</button>
+              <label for="photos" class="visuellement-cache">Ajouter des photos</label>
+              <input type="file" id="photos" name="photos" accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+                     multiple class="visuellement-cache" aria-describedby="aide-photos">
+              <p id="aide-photos">Jusqu'à 5 photos. Vous pouvez aussi les déposer ici ou les coller.</p>
+            </div>
+            <p class="aide etat-photos" id="etat-photos" aria-live="polite"></p>
+            <ul class="vignettes" id="vignettes" aria-live="polite" aria-label="Photos ajoutées"></ul>
+            <span class="aide">Pas de personnes identifiables ni de plaques d'immatriculation.</span>
+          </div>
+        </div>
+        <footer class="ecran-pied">
+          <button type="button" class="bouton" id="btn-suivant-description" disabled>Continuer</button>
+          <p class="aide" id="aide-continuer-description">Décrivez ce que vous voyez.</p>
+        </footer>
+      </section>
+
+      <!-- ===== Étape 4 : coordonnées ===== -->
+      <section class="section vue" id="bloc-etape-coordonnees" hidden>
+        <header class="ecran-entete entete-etape">
+          <div class="entete-ligne">
+            <button type="button" class="entete-retour" data-retour aria-label="Étape précédente">
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
+                <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            <span class="entete-titre">Étape 4 sur 5</span>
+          </div>
+          <div class="entete-barre"><div class="entete-barre-jauge" style="width:80%"></div></div>
+        </header>
+        <div class="ecran-contenu">
+          <h2>Vos coordonnées</h2>
+
+          <div class="champ" style="margin-top:1rem">
+            <label for="email">Votre e-mail</label>
+            <input type="email" id="email" name="email" required autocomplete="email"
+                   aria-describedby="aide-email" inputmode="email">
+            <span class="aide" id="aide-email">Pour vous informer de la suite donnée.</span>
+          </div>
+
+          <div class="champ">
+            <label for="nom">Votre nom <span style="font-weight:400;color:var(--mention)">(facultatif)</span></label>
+            <input type="text" id="nom" name="nom" autocomplete="name" maxlength="80">
+          </div>
+
+          <div class="champ">
+            <label for="telephone">Votre téléphone <span style="font-weight:400;color:var(--mention)">(facultatif)</span></label>
+            <input type="tel" id="telephone" name="telephone" autocomplete="tel" maxlength="24"
+                   aria-describedby="aide-telephone" inputmode="tel">
+            <span class="aide" id="aide-telephone">Uniquement si un agent doit vous rappeler.</span>
+          </div>
+
+          <div class="champ case">
+            <input type="checkbox" id="consentement" name="consentement" required aria-describedby="aide-consentement">
+            <label for="consentement" id="aide-consentement">
+              J'accepte la transmission de ces informations aux services municipaux pour le traitement de mon signalement.
+            </label>
+          </div>
+
+          <details class="accordeon-rgpd">
+            <summary>Comment sont utilisées vos données</summary>
+            <div class="rgpd">
+              <p>
+                Les informations recueillies par ce formulaire servent uniquement à traiter votre signalement et à vous
+                tenir informé de la suite donnée. Elles sont transmises par courriel aux services municipaux concernés
+                et, le cas échéant, au gestionnaire compétent (Communauté Paris-Saclay, Conseil départemental de l'Essonne,
+                opérateur de réseau). Le traitement repose sur l'exécution d'une mission d'intérêt public.
+              </p>
+              <p>
+                Vos signalements ne sont pas publiés et ne sont enregistrés dans aucune base de données : ils existent
+                uniquement sous forme de messages dans les boîtes mail des services. Ils y sont conservés
+                <strong>[durée à confirmer, proposition : 3 ans]</strong>.
+              </p>
+              <p>
+                Vous disposez d'un droit d'accès, de rectification et d'effacement de vos données. Pour l'exercer,
+                écrivez à <a href="mailto:contact@epinaysurorge.fr">contact@epinaysurorge.fr</a> ou au délégué à la
+                protection des données : <strong>[coordonnées du DPO à confirmer]</strong>. Politique complète :
+                <a href="/politique-de-confidentialite" id="lien-confidentialite">politique de confidentialité</a>.
+              </p>
+            </div>
+          </details>
+        </div>
+        <footer class="ecran-pied">
+          <button type="button" class="bouton" id="btn-suivant-coordonnees">Vérifier avant l'envoi</button>
+        </footer>
+      </section>
+
+      <!-- ===== Étape 5 : récapitulatif et envoi ===== -->
+      <section class="section vue" id="bloc-etape-recap" hidden>
+        <header class="ecran-entete entete-etape">
+          <div class="entete-ligne">
+            <button type="button" class="entete-retour" data-retour aria-label="Étape précédente">
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
+                <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            <span class="entete-titre">Étape 5 sur 5</span>
+          </div>
+          <div class="entete-barre"><div class="entete-barre-jauge" style="width:100%"></div></div>
+        </header>
+        <div class="ecran-contenu">
+          <h2>Vérifiez avant l'envoi</h2>
+
+          <!-- Résumé des erreurs, injecté en JavaScript -->
+          <div id="resume-erreurs" class="resume-erreurs" role="alert" tabindex="-1" hidden>
+            <h2 id="resume-erreurs-titre">Votre signalement n'a pas pu être envoyé</h2>
+            <ul id="resume-erreurs-liste"></ul>
+          </div>
+
+          <ul class="recap" id="recap-avant-envoi"></ul>
+        </div>
+        <footer class="ecran-pied">
+          <button type="submit" class="bouton bouton-pleine" id="btn-envoyer">Envoyer mon signalement</button>
+          <p class="aide" id="etat-envoi" aria-live="polite"></p>
+        </footer>
+      </section>
+
+    </form>
+
+    <!-- ===== Carte de renvoi fibre, affichée à la place du formulaire ===== -->
+    <section class="section vue" id="bloc-fibre" hidden>
+      <header class="ecran-entete entete-etape">
+        <div class="entete-ligne">
+          <button type="button" class="entete-retour" id="btn-retour-formulaire" aria-label="Revenir au signalement">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
+              <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <span class="entete-titre">Cellule Fibre Optique</span>
+        </div>
+      </header>
+      <div class="ecran-contenu">
+        <div class="renvoi">
+          <h2>La fibre a son propre dispositif</h2>
+          <p>
+            La ville a mis en place une cellule dédiée aux incidents de fibre optique, distincte des signalements
+            d'espace public.
+          </p>
+          <p>
+            Les incidents y sont suivis avec l'opérateur d'infrastructure, et l'historique est tenu point de
+            mutualisation par point de mutualisation. Un raccordement qui ne fonctionne plus, une armoire ouverte
+            ou un débranchement subi se déclarent donc là-bas, avec les informations propres à votre logement.
+          </p>
+          <a class="bouton" href="https://VOTRE-FORMULAIRE-FIBRE.example" id="lien-fibre" target="_blank" rel="noopener noreferrer">
+            Remplir le formulaire
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
+              <path d="M14 5h5v5M19 5l-9 9M12 5H7a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </a>
+          <p style="font-size:.9rem;margin:0">
+            Vous pouvez aussi écrire directement à
+            <a href="mailto:cellule.fibre@epinaysurorge.fr">cellule.fibre@epinaysurorge.fr</a>.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Écran de confirmation ===== -->
+    <section class="section vue" id="bloc-confirmation" hidden>
+      <header class="ecran-entete entete-logo-seul">
+        <img class="logo-img" data-logo alt="Ville d'Épinay-sur-Orge" hidden>
+        <div class="logo-entete" data-logo-svg role="img" aria-label="Ville d'Épinay-sur-Orge">
+          <svg class="logo-mark" viewBox="0 0 46 46" aria-hidden="true" focusable="false">
+            <path d="M11 23 L18 12 L25 23 L18 34 Z" fill="rgba(255,255,255,.45)"/>
+            <path d="M18 23 L25 12 L32 23 L25 34 Z" fill="rgba(255,255,255,.72)"/>
+            <path d="M25 23 L32 12 L39 23 L32 34 Z" fill="#ffffff"/>
+          </svg>
+          <span class="logo-mot"><b>Épinay</b><i>sur</i><b>Orge</b></span>
+        </div>
+      </header>
+      <div class="ecran-contenu">
+        <div class="confirmation" tabindex="-1" id="ancre-confirmation">
+          <p class="surtitre" style="color:#047857">Signalement transmis</p>
+          <h2>Votre signalement est parti</h2>
+          <p class="reference" id="affiche-reference"></p>
+          <p style="font-size:.93rem">Conservez cette référence : elle identifie votre signalement dans les échanges avec les services.</p>
+          <ul class="recap" id="recap"></ul>
+          <p style="font-size:.93rem;margin-bottom:0">
+            Un accusé de réception vient de vous être envoyé par courriel. Le service compétent qualifie votre
+            demande sous <strong>[délai à confirmer par le service]</strong>. Ce message ne vaut pas engagement
+            d'intervention à une date fixe.
+          </p>
+        </div>
+
+        <!-- Ce que devient votre signalement : à la fin, sur le même écran -->
+        <div class="apres-envoi">
+          <p class="surtitre">Après l'envoi</p>
+          <h3 style="margin-bottom:.9rem">Ce que devient votre signalement</h3>
+          <ol class="etapes">
+            <li>
+              <h3>Réception</h3>
+              <p>Votre signalement arrive dans la boîte du service concerné et vous recevez un accusé de réception
+              immédiat avec votre référence.</p>
+            </li>
+            <li>
+              <h3>Qualification</h3>
+              <p>Un agent vérifie la nature du problème et la compétence : ville, Communauté Paris-Saclay, Département,
+              opérateur ou propriétaire privé. Délai visé : <strong>[à confirmer par le service]</strong>.</p>
+            </li>
+            <li>
+              <h3>Intervention</h3>
+              <p>Le service programme l'intervention selon l'urgence et les moyens disponibles. Une remise en état
+              lourde peut demander un marché ou un budget, et donc davantage de temps.</p>
+            </li>
+            <li>
+              <h3>Information</h3>
+              <p>Vous êtes informé par courriel de la suite donnée : traitement effectué, transmission à un autre
+              gestionnaire, ou motif de non-intervention. <strong>[Modalités à confirmer par le service]</strong>.</p>
+            </li>
+          </ol>
+        </div>
+      </div>
+      <footer class="ecran-pied">
+        <button type="button" class="bouton bouton-secondaire" id="btn-nouveau">Faire un autre signalement</button>
+      </footer>
+    </section>
+
+  </div>
+</main>
+
+<!-- ===== Ce que ce formulaire ne traite pas : modale, révélée par le bouton de l'encart urgence ===== -->
+<div class="modale-fond" id="hors-perimetre" hidden>
+  <div class="modale" role="dialog" aria-modal="true" aria-labelledby="titre-perimetre" tabindex="-1" id="modale-perimetre">
+    <button type="button" class="modale-fermer" id="btn-fermer-perimetre" aria-label="Fermer">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">
+        <path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+      </svg>
+    </button>
+    <p class="surtitre">Périmètre</p>
+    <h2 id="titre-perimetre" style="margin-bottom:.9rem">Ce formulaire ne traite pas</h2>
+    <ul class="exclusions">
+      <li>
+        <strong>Les conflits de voisinage</strong>
+        Bruit, végétation entre deux propriétés, mitoyenneté : ces différends relèvent du droit privé.
+        Adressez-vous à un conciliateur de justice. <strong>[Permanences à confirmer]</strong>
+      </li>
+      <li>
+        <strong>Les litiges privés et les dommages subis</strong>
+        Une demande d'indemnisation ou une mise en cause de la responsabilité de la commune se traite par
+        courrier, pas par ce formulaire. Écrivez à
+        <a href="mailto:contact@epinaysurorge.fr">contact@epinaysurorge.fr</a>.
+      </li>
+      <li>
+        <strong>Les demandes d'urbanisme</strong>
+        Permis, déclaration préalable, contestation d'un chantier autorisé : contactez le service urbanisme.
+        <strong>[Adresse du service à confirmer]</strong>
+      </li>
+      <li>
+        <strong>Les démarches individuelles</strong>
+        État civil, inscriptions scolaires, cimetière, réclamations sur une facture : passez par l'accueil de
+        la mairie ou par le service concerné.
+      </li>
+      <li>
+        <strong>Les incidents de fibre optique</strong>
+        Ils relèvent de la <a href="https://fibre.epinaysurorge.fr">Cellule Fibre Optique</a>.
+      </li>
+    </ul>
+  </div>
+</div>
+
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" crossorigin="anonymous"></script>
+
+<script>
+/* ============================================================================
+   PAGE DE SIGNALEMENT · VILLE D'ÉPINAY-SUR-ORGE
+   Version autonome, sans CMS, sans framework, sans étape de build.
+
+   AVANT DÉPLOIEMENT, DEUX BLOCS À CONFIGURER :
+     1. CONFIG.WEBHOOK  (URL du webhook n8n)
+     2. CATEGORIES      (taxonomie et routage)
+   Le reste du script n'a pas besoin d'être modifié.
+   ============================================================================ */
+
+/* ---------- 1. CONFIGURATION ---------- */
+const CONFIG = {
+  // Seule valeur techniquement obligatoire à changer avant mise en ligne.
+  WEBHOOK: 'https://VOTRE-INSTANCE-N8N.example/webhook/VOTRE-CHEMIN-WEBHOOK',
+
+  MAIL_CONTACT: 'contact@epinaysurorge.fr',
+  MAIL_FIBRE: 'cellule.fibre@epinaysurorge.fr',
+  URL_FIBRE: 'https://VOTRE-FORMULAIRE-FIBRE.example',
+  URL_CONFIDENTIALITE: '/politique-de-confidentialite',
+
+  // Logo blanc (négatif) affiché dans le bandeau bleu. Chemin RELATIF : si la page
+  // est déposée dans /quizz/, « assets/... » pointe vers /quizz/assets/logo-epinay-negatif.webp.
+  // S'il ne se charge pas, le logo vectoriel intégré (losanges + nom) prend le relais.
+  LOGO: 'assets/logo-epinay-negatif.webp',
+
+  MAX_PHOTOS: 5,
+  PHOTO_COTE_LONG: 1600,
+  PHOTO_QUALITE: 0.75,
+  PAYLOAD_MAX_MO: 8,        // à aligner sur la limite de l'instance n8n
+  DELAI_MINIMAL_MS: 4000,   // anti-robot : délai entre affichage et envoi
+
+  CODE_POSTAL: '91360',
+  CARTE: { lat: 48.6725, lon: 2.3110, zoom: 15, marge: 0.045 },
+
+  API_GEOCODAGE: 'https://data.geopf.fr/geocodage/search',
+  API_GEOCODAGE_INVERSE: 'https://data.geopf.fr/geocodage/reverse'
+};
+
+/* ---------- 2. TAXONOMIE DES CATÉGORIES ET MOTIFS ----------
+   Structure d'un motif :
+     { label: 'Libellé vu par l'habitant' }
+     { label: '...', info: 'Encart de compétence affiché sous le menu' }
+     { label: '...', renvoi: 'fibre' }   -> masque le formulaire
+   L'ordre d'affichage est l'ordre du tableau. « Autre » reste en dernier.
+------------------------------------------------------------- */
+const CATEGORIES = [
+  {
+    id: 'voirie',
+    label: 'Voirie et circulation',
+    motifs: [
+      { label: 'Nid-de-poule ou chaussée dégradée',
+        info: "Si le problème se situe sur une route départementale (RD 25, RD 117 et autres axes traversants), l'intervention relève du Conseil départemental de l'Essonne. Nous transmettons votre signalement. [À CONFIRMER PAR LE SERVICE]" },
+      { label: 'Trottoir, bordure ou caniveau' },
+      { label: 'Panneau ou signalisation' },
+      { label: 'Marquage au sol' },
+      { label: 'Mobilier urbain endommagé' }
+    ]
+  },
+  {
+    id: 'eclairage',
+    label: 'Éclairage public',
+    motifs: [
+      { label: 'Point lumineux éteint' },
+      { label: 'Allumé en journée' },
+      { label: 'Mât ou coffret endommagé ou ouvert',
+        info: "Un coffret ouvert présente un risque électrique. N'y touchez pas et éloignez les enfants. En cas de danger immédiat, appelez le 18." }
+    ]
+  },
+  {
+    id: 'proprete',
+    label: 'Propreté et déchets',
+    motifs: [
+      { label: 'Dépôt sauvage' },
+      { label: 'Corbeille de rue pleine ou cassée' },
+      { label: 'Collecte non effectuée',
+        info: "La collecte des déchets est assurée par la Communauté Paris-Saclay. Nous transmettons votre signalement au service compétent. [À CONFIRMER PAR LE SERVICE]" },
+      { label: "Conteneur ou point d'apport dégradé",
+        info: "Les points d'apport volontaire relèvent de la Communauté Paris-Saclay. [À CONFIRMER PAR LE SERVICE]" },
+      { label: 'Tags et graffitis',
+        info: "Sur une façade privée, l'effacement reste à la charge du propriétaire. Signalez tout de même : la ville peut vous orienter. [À CONFIRMER PAR LE SERVICE]" },
+      { label: 'Déjections et souillures' }
+    ]
+  },
+  {
+    id: 'espaces-verts',
+    label: 'Espaces verts et nature',
+    motifs: [
+      { label: 'Végétation débordante sur le domaine public',
+        info: "Si la végétation provient d'une propriété privée, la taille incombe au propriétaire. La ville peut le mettre en demeure. [À CONFIRMER PAR LE SERVICE]" },
+      { label: 'Arbre ou branche tombée',
+        info: "Si un arbre bloque la circulation ou menace de tomber, appelez le 18 sans attendre." },
+      { label: "Entretien d'un espace vert" },
+      { label: 'Aire de jeux dégradée' }
+    ]
+  },
+  {
+    id: 'eau',
+    label: 'Eau et assainissement',
+    motifs: [
+      { label: 'Fuite ou écoulement sur la voirie',
+        info: "Le réseau d'eau potable et l'assainissement sont gérés par un délégataire. Nous transmettons votre signalement. [GESTIONNAIRE À CONFIRMER PAR LE SERVICE]" },
+      { label: 'Grille ou avaloir bouché' },
+      { label: 'Inondation ou stagnation' },
+      { label: "Odeurs ou regard d'assainissement" }
+    ]
+  },
+  {
+    id: 'reseaux',
+    label: 'Réseaux et numérique',
+    motifs: [
+      { label: 'Fibre optique', renvoi: 'fibre' },
+      { label: 'Autre réseau (télécom, électricité, gaz)',
+        info: "Ces réseaux appartiennent à leurs opérateurs. En cas d'odeur de gaz, appelez immédiatement le 0 800 47 33 33 (GRDF). Pour une coupure électrique, contactez Enedis au 09 72 67 50 91." },
+      { label: 'Anomalie sur le site internet de la ville' }
+    ]
+  },
+  {
+    id: 'animaux',
+    label: 'Animaux et nuisibles',
+    motifs: [
+      { label: 'Animal mort sur la voie publique' },
+      { label: 'Animal errant ou divagation' },
+      { label: 'Nid de frelons ou de guêpes',
+        info: "Sur une propriété privée, la destruction reste à la charge de l'occupant. La commune intervient sur le domaine public. [À CONFIRMER PAR LE SERVICE]" },
+      { label: 'Rongeurs' }
+    ]
+  },
+  {
+    id: 'cadre-de-vie',
+    label: 'Cadre de vie et tranquillité',
+    motifs: [
+      { label: 'Stationnement gênant ou véhicule ventouse' },
+      { label: 'Occupation abusive du domaine public' },
+      { label: 'Travaux ou affichage sans autorisation apparente' },
+      { label: 'Nuisance sonore récurrente',
+        info: "Un tapage ponctuel se signale à la police (17). Ce formulaire concerne les nuisances installées dans la durée. Les conflits entre voisins relèvent du conciliateur de justice." }
+    ]
+  },
+  {
+    id: 'autre',
+    label: 'Autre',
+    libre: true,   // affiche un champ texte à la place du menu « Précisez »
+    motifs: []
+  }
+];
+
+/* ---------- 3. RACCOURCIS ---------- */
+const $ = (id) => document.getElementById(id);
+const els = {
+  form: $('formulaire'), blocFibre: $('bloc-fibre'),
+  blocConf: $('bloc-confirmation'), horsPerimetre: $('hors-perimetre'),
+  categorie: $('categorie'), motif: $('motif'), motifLibre: $('motif-libre'),
+  champMotifLibre: $('champ-motif-libre'), blocMotifInline: $('bloc-motif-inline'),
+  competence: $('encart-competence'),
+  adresse: $('adresse'), suggestions: $('suggestions'), etatAdresse: $('etat-adresse'),
+  complement: $('complement'),
+  position: $('position-retenue'), btnLocaliser: $('btn-localiser'), btnEffacer: $('btn-effacer-position'),
+  description: $('description'), compteur: $('compteur'),
+  photos: $('photos'), btnPhotos: $('btn-photos'), vignettes: $('vignettes'),
+  depose: $('depose'), etatPhotos: $('etat-photos'),
+  email: $('email'), nom: $('nom'), telephone: $('telephone'), consentement: $('consentement'),
+  societe: $('societe'), btnEnvoyer: $('btn-envoyer'), etatEnvoi: $('etat-envoi'),
+  resume: $('resume-erreurs'), resumeListe: $('resume-erreurs-liste'),
+  reference: $('affiche-reference'), recap: $('recap'),
+  btnNouveau: $('btn-nouveau'), btnRetour: $('btn-retour-formulaire'), btnCarte: $('carte'),
+
+  // Écran d'accueil et navigation à étapes
+  blocAccueil: $('bloc-accueil'),
+  btnCommencer: $('btn-commencer'), lienFibreAccueil: $('lien-fibre-accueil'),
+  btnPerimetre: $('btn-perimetre'),
+  blocEtapeCategorie: $('bloc-etape-categorie'), grilleCategories: $('grille-categories'),
+  chipCategorie: $('chip-categorie'), aideCategorie: $('aide-categorie'),
+  grilleMotifs: $('grille-motifs'), btnSuivantCategorie: $('btn-suivant-categorie'),
+  blocEtapeLieu: $('bloc-etape-lieu'), btnSuivantLieu: $('btn-suivant-lieu'),
+  blocEtapeDescription: $('bloc-etape-description'), btnSuivantDescription: $('btn-suivant-description'),
+  blocEtapeCoordonnees: $('bloc-etape-coordonnees'), btnSuivantCoordonnees: $('btn-suivant-coordonnees'),
+  blocEtapeRecap: $('bloc-etape-recap'), recapAvantEnvoi: $('recap-avant-envoi')
+};
+
+/* ---------- 4. ÉTAT ---------- */
+const etat = {
+  latitude: null,
+  longitude: null,
+  adresse: '',
+  precisionSource: null,   // 'gps' | 'adresse' | 'manuel'
+  photos: [],              // { nom, base64, apercu, octets }
+  photoRetiree: null,      // { photo, index } conservée le temps d'une annulation
+  minuteurAnnulation: null,
+  champsTouches: new Set(),
+  carte: null,
+  marqueur: null,
+  ouverture: Date.now(),
+  envoiEnCours: false,
+  suggestionActive: -1,
+  dernieresSuggestions: []
+};
+
+/* ---------- 5. LIENS CONFIGURABLES ---------- */
+$('lien-confidentialite').href = CONFIG.URL_CONFIDENTIALITE;
+$('lien-fibre').href = CONFIG.URL_FIBRE;
+
+/* Le logo par défaut est un lockup SVG blanc intégré au bandeau. Si le fichier
+   logo négatif (CONFIG.LOGO) se charge, il remplace le SVG ; sinon le SVG reste. */
+if (CONFIG.LOGO) {
+  document.querySelectorAll('img[data-logo]').forEach((img) => {
+    img.addEventListener('load', () => {
+      img.hidden = false;
+      const svg = img.parentElement.querySelector('[data-logo-svg]');
+      if (svg) svg.hidden = true;
+    });
+    img.addEventListener('error', () => { img.remove(); });
+    img.src = CONFIG.LOGO;
+  });
+}
+
+/* ============================================================================
+   5 bis. MOUVEMENT ET MATIÈRE
+   Deux outils partagés : la préférence de mouvement de l'utilisateur,
+   et le défilement vers une cible.
+   ============================================================================ */
+/* Toute la page repose sur des replis (Leaflet absent, géocodeur muet, webhook
+   injoignable). La lecture des préférences système suit la même règle : si le
+   navigateur ne sait pas répondre, on retient l'hypothèse la plus sobre. */
+const mouvementReduit = typeof window.matchMedia === 'function'
+  ? window.matchMedia('(prefers-reduced-motion: reduce)')
+  : { matches: true };
+
+function defiler(element, bloc) {
+  if (!element || typeof element.scrollIntoView !== 'function') return;
+  element.scrollIntoView({
+    block: bloc || 'start',
+    behavior: mouvementReduit.matches ? 'auto' : 'smooth'
+  });
+}
+
+/* Bascule entre formulaire, renvoi fibre et confirmation.
+   La vue sortante s'efface vers le haut, la suivante arrive par le bas :
+   un aller et un retour empruntent le même axe, avec des courbes miroir. */
+function basculerVue(sortante, entrante, apres) {
+  const finir = () => {
+    sortante.hidden = true;
+    sortante.classList.remove('sort');
+    entrante.hidden = false;
+    entrante.classList.add('entre');
+    // Une image est forcée avant de retirer l'état d'entrée,
+    // sinon le navigateur fusionne les deux et le mouvement n'a pas lieu.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        entrante.classList.remove('entre');
+        if (typeof apres === 'function') apres();
+      });
+    });
+  };
+
+  if (mouvementReduit.matches) { finir(); return; }
+
+  sortante.classList.add('sort');
+  let termine = false;
+  const suite = () => { if (termine) return; termine = true; finir(); };
+  sortante.addEventListener('transitionend', suite, { once: true });
+  // Filet de sécurité : la bascule ne doit jamais rester en suspens.
+  setTimeout(suite, 340);
+}
+
+/* ============================================================================
+   5 ter. NAVIGATION ENTRE ÉCRANS
+   L'accueil n'est pas compté dans les 5 étapes : il précède le parcours.
+   Catégorie et motif partagent un seul écran (la grille de catégories se
+   replie sur le choix pour révéler les motifs) : la validation ne porte que
+   sur ce qui est réellement affiché à l'instant du clic sur « Continuer ».
+   Le formulaire, lui, reste un seul <form> qui englobe les cinq sections :
+   la validation et l'envoi (plus bas dans ce script) n'ont pas eu besoin
+   de changer, seule la présentation est découpée en écrans successifs.
+   ============================================================================ */
+const DEFINITION_ETAPES = [
+  { id: 'probleme', el: els.blocEtapeCategorie, champs: () => {
+      const cat = categorieCourante();
+      return cat ? ['categorie', cat.libre ? 'motif-libre' : 'motif'] : ['categorie'];
+    } },
+  { id: 'lieu', el: els.blocEtapeLieu, champs: () => ['adresse'] },
+  { id: 'description', el: els.blocEtapeDescription, champs: () => ['description'] },
+  { id: 'coordonnees', el: els.blocEtapeCoordonnees, champs: () => ['email', 'consentement'] },
+  { id: 'recap', el: els.blocEtapeRecap, champs: () => [] }
+];
+let indexEtape = -1;          // -1 : on est sur l'écran d'accueil, hors parcours
+let vueActuelle = els.blocAccueil;
+
+function allerEtape(i) {
+  const cible = DEFINITION_ETAPES[i].el;
+  const source = vueActuelle;
+  indexEtape = i;
+  vueActuelle = cible;
+  majContinuer();
+  basculerVue(source, cible, () => {
+    const titre = cible.querySelector('h2');
+    if (titre) { titre.setAttribute('tabindex', '-1'); titre.focus({ preventScroll: true }); }
+    defiler(cible, 'start');
+    // La carte Leaflet a été initialisée pendant que son conteneur était masqué
+    // (largeur/hauteur nulles) : sans ce recalcul, les tuiles restent grises.
+    if (DEFINITION_ETAPES[i].id === 'lieu' && etat.carte) {
+      etat.carte.invalidateSize();
+    }
+  });
+}
+
+/* Les boutons « Continuer » des étapes problème et description restent grisés
+   tant que le champ requis n'est pas rempli (retour visuel du design). */
+function majContinuer() {
+  const cat = categorieCourante();
+  let okProbleme = false;
+  if (cat) okProbleme = cat.libre ? els.motifLibre.value.trim().length > 0 : els.motif.value !== '';
+  els.btnSuivantCategorie.disabled = !okProbleme;
+  els.btnSuivantDescription.disabled = els.description.value.trim().length < 20;
+}
+
+function validerChampsEtape(ids) {
+  const invalides = [];
+  ids.forEach((id) => {
+    const c = controles().find((x) => x.id === id);
+    if (!c) return;
+    etat.champsTouches.add(id);
+    messageChamp(c, !c.ok);
+    if (!c.ok) invalides.push(c);
+  });
+  return invalides;
+}
+
+/* Le select de catégorie/motif est masqué (aria-hidden) : le focus doit
+   toujours retomber sur un bouton réel de la grille, jamais sur lui. */
+function elementPourFocus(id) {
+  if (id === 'categorie') return els.grilleCategories.querySelector('.bouton-categorie:not([hidden])');
+  if (id === 'motif') return els.grilleMotifs.querySelector('.bouton-motif');
+  return null;
+}
+
+function etapeSuivante() {
+  const invalides = validerChampsEtape(DEFINITION_ETAPES[indexEtape].champs());
+  if (invalides.length) {
+    const cible = elementPourFocus(invalides[0].id) || invalides[0].el;
+    cible.focus({ preventScroll: true });
+    defiler(cible, 'center');
+    return;
+  }
+  const prochaine = indexEtape + 1;
+  if (prochaine >= DEFINITION_ETAPES.length) return; // le récapitulatif a son propre bouton d'envoi
+  if (DEFINITION_ETAPES[prochaine].id === 'recap') construireRecap();
+  allerEtape(prochaine);
+}
+
+function etapePrecedente() {
+  if (indexEtape <= 0) { allerAccueil(); return; }
+  allerEtape(indexEtape - 1);
+}
+
+function allerAccueil() {
+  indexEtape = -1;
+  const source = vueActuelle;
+  vueActuelle = els.blocAccueil;
+  basculerVue(source, els.blocAccueil, () => {
+    els.btnCommencer.focus({ preventScroll: true });
+    defiler(els.blocAccueil, 'start');
+  });
+}
+
+els.btnCommencer.addEventListener('click', () => allerEtape(0));
+document.querySelectorAll('[data-retour]').forEach((b) => b.addEventListener('click', etapePrecedente));
+els.btnSuivantCategorie.addEventListener('click', etapeSuivante);
+els.btnSuivantLieu.addEventListener('click', etapeSuivante);
+els.btnSuivantDescription.addEventListener('click', etapeSuivante);
+els.btnSuivantCoordonnees.addEventListener('click', etapeSuivante);
+
+/* Le périmètre (« ce formulaire ne traite pas ») s'ouvre en superposition,
+   sur demande explicite : le bouton dans l'encart urgence.
+   Il se ferme par la croix, un clic sur le fond, ou la touche Échap. */
+let declencheurPerimetre = null;
+
+function ouvrirPerimetre(e) {
+  if (e) { e.stopPropagation(); declencheurPerimetre = e.currentTarget; }
+  els.horsPerimetre.hidden = false;
+  document.body.style.overflow = 'hidden';
+  els.btnPerimetre.setAttribute('aria-expanded', 'true');
+  $('modale-perimetre').focus({ preventScroll: true });
+}
+
+function fermerPerimetre() {
+  els.horsPerimetre.hidden = true;
+  document.body.style.overflow = '';
+  els.btnPerimetre.setAttribute('aria-expanded', 'false');
+  if (declencheurPerimetre && typeof declencheurPerimetre.focus === 'function') {
+    declencheurPerimetre.focus({ preventScroll: true });
+  }
+  declencheurPerimetre = null;
+}
+
+els.btnPerimetre.addEventListener('click', ouvrirPerimetre);
+$('btn-fermer-perimetre').addEventListener('click', fermerPerimetre);
+els.horsPerimetre.addEventListener('click', (e) => {
+  // Clic sur le fond sombre (et non sur le panneau) : fermeture.
+  if (e.target === els.horsPerimetre) fermerPerimetre();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !els.horsPerimetre.hidden) fermerPerimetre();
+});
+
+// La saisie au clavier ne doit jamais déclencher un envoi tant que le
+// récapitulatif n'est pas atteint : le bouton d'envoi existe dans le DOM
+// dès le départ, seulement masqué avec les autres étapes.
+els.form.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && e.target.tagName === 'INPUT' && DEFINITION_ETAPES[indexEtape].id !== 'recap') {
+    e.preventDefault();
+  }
+});
+
+function construireRecap() {
+  const cat = categorieCourante();
+  const motif = libelleMotif();
+  const lignes = [
+    { label: 'Catégorie', valeur: (cat ? cat.label : '') + (motif ? ' · ' + motif : ''), etape: 0 },
+    { label: 'Lieu', valeur: (els.adresse.value.trim() || etat.adresse || 'position sur la carte') +
+        (els.complement.value.trim() ? ' · ' + els.complement.value.trim() : ''), etape: 1 },
+    { label: 'Description', valeur: els.description.value.trim(), etape: 2 },
+    { label: 'Photos', valeur: etat.photos.length ? etat.photos.length + ' photo(s) jointe(s)' : 'aucune photo', etape: 2 },
+    { label: 'Contact', valeur: els.email.value.trim() +
+        (els.telephone.value.trim() ? ' · ' + els.telephone.value.trim() : ''), etape: 3 }
+  ];
+  els.recapAvantEnvoi.innerHTML = '';
+  lignes.forEach((l) => {
+    const li = document.createElement('li');
+    const contenu = document.createElement('div');
+    contenu.innerHTML = '<strong>' + echapper(l.label) + '</strong>' + echapper(l.valeur || '—');
+    const bouton = document.createElement('button');
+    bouton.type = 'button';
+    bouton.className = 'bouton-discret modifier-recap';
+    bouton.textContent = 'Modifier';
+    bouton.addEventListener('click', () => allerEtape(l.etape));
+    li.append(contenu, bouton);
+    els.recapAvantEnvoi.appendChild(li);
+  });
+}
+
+let origineFibre = 'motif'; // détermine où ramène « Revenir au formulaire »
+
+els.lienFibreAccueil.addEventListener('click', () => {
+  origineFibre = 'accueil';
+  afficherRenvoiFibre();
+});
+
+/* ============================================================================
+   6. CATÉGORIES ET MOTIFS
+   ============================================================================ */
+/* Traits fins, cohérents avec la charte : une icône n'est jamais seule,
+   le libellé texte l'accompagne toujours dans le bouton. */
+const ICONES_CATEGORIES = {
+  'voirie': '<path d="M9 3L4 21M15 3l5 18M12 8v2M12 13v2M12 18v1"/>',
+  'eclairage': '<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3 11.2c.6.4 1 1.1 1 1.8h4c0-.7.4-1.4 1-1.8A6 6 0 0 0 12 3Z"/>',
+  'proprete': '<path d="M4 7h16M9 7V4h6v3M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13M10 11v6M14 11v6"/>',
+  'espaces-verts': '<circle cx="12" cy="9" r="6"/><path d="M12 15v6"/>',
+  'eau': '<path d="M12 3s6 7.5 6 12a6 6 0 0 1-12 0c0-4.5 6-12 6-12Z"/>',
+  'reseaux': '<path d="M5 12a10 10 0 0 1 14 0M8 15.5a6 6 0 0 1 8 0M12 19h.01"/>',
+  'animaux': '<ellipse cx="12" cy="16" rx="4" ry="3"/><circle cx="7" cy="10" r="1.6"/><circle cx="10.5" cy="7" r="1.6"/><circle cx="13.5" cy="7" r="1.6"/><circle cx="17" cy="10" r="1.6"/>',
+  'cadre-de-vie': '<path d="M4 21V9l4-3v15M12 21V5l4 3v13M4 21h16"/>',
+  'autre': '<circle cx="6" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18" cy="12" r="1.3"/>'
+};
+
+function remplirCategories() {
+  CATEGORIES.forEach((c) => {
+    const o = document.createElement('option');
+    o.value = c.id;
+    o.textContent = c.label;
+    els.categorie.appendChild(o);
+  });
+}
+
+function remplirGrilleCategories() {
+  CATEGORIES.forEach((c) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'bouton-categorie';
+    b.dataset.id = c.id;
+    b.innerHTML =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" ' +
+      'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' +
+      (ICONES_CATEGORIES[c.id] || '') + '</svg><span>' + echapper(c.label) + '</span>';
+    b.addEventListener('click', () => choisirCategorie(c.id));
+    els.grilleCategories.appendChild(b);
+  });
+}
+
+/* La grille cède la place à une chip « catégorie choisie » et fait apparaître
+   les motifs. Toucher la chip rouvre la grille pour changer de catégorie. */
+function choisirCategorie(id) {
+  els.categorie.value = id;
+  els.categorie.dispatchEvent(new Event('change'));
+  etat.champsTouches.add('categorie');
+  controlerChamp('categorie', true);
+
+  const cat = CATEGORIES.find((c) => c.id === id);
+  $('chip-categorie-nom').textContent = cat ? cat.label : '';
+  els.grilleCategories.hidden = true;
+  els.chipCategorie.hidden = false;
+  els.aideCategorie.hidden = true;
+  majContinuer();
+  // Les motifs apparaissent en haut de l'écran : pas besoin de faire défiler.
+  const contenu = els.blocEtapeCategorie.querySelector('.ecran-contenu');
+  if (contenu) contenu.scrollTop = 0;
+}
+
+function reinitialiserCategories() {
+  els.grilleCategories.hidden = false;
+  els.chipCategorie.hidden = true;
+  els.aideCategorie.hidden = false;
+  els.categorie.value = '';
+  els.categorie.dispatchEvent(new Event('change'));
+  etat.champsTouches.add('categorie');
+  majContinuer();
+}
+
+function categorieCourante() {
+  return CATEGORIES.find((c) => c.id === els.categorie.value) || null;
+}
+
+els.chipCategorie.addEventListener('click', reinitialiserCategories);
+
+function remplirGrilleMotifs(cat) {
+  els.grilleMotifs.innerHTML = '';
+  cat.motifs.forEach((m, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'bouton-motif';
+    b.dataset.index = String(i);
+    b.textContent = m.label;
+    b.addEventListener('click', () => choisirMotif(i));
+    els.grilleMotifs.appendChild(b);
+  });
+}
+
+function choisirMotif(i) {
+  els.motif.value = String(i);
+  els.motif.dispatchEvent(new Event('change'));
+  els.grilleMotifs.querySelectorAll('.bouton-motif').forEach((b) => {
+    b.classList.toggle('selectionnee', Number(b.dataset.index) === i);
+  });
+  etat.champsTouches.add('motif');
+  controlerChamp('motif', true);
+  majContinuer();
+}
+
+els.motifLibre.addEventListener('input', majContinuer);
+
+els.categorie.addEventListener('change', () => {
+  const cat = categorieCourante();
+  els.competence.hidden = true;
+  els.motif.innerHTML = '<option value="">Choisissez un motif</option>';
+  els.motifLibre.value = '';
+  els.grilleMotifs.innerHTML = '';
+
+  if (!cat) { els.blocMotifInline.hidden = true; return; }
+  els.blocMotifInline.hidden = false;
+
+  if (cat.libre) {
+    // Catégorie « Autre » : champ libre à la place de la grille
+    els.motif.removeAttribute('required');
+    els.grilleMotifs.hidden = true;
+    els.champMotifLibre.hidden = false;
+    els.motifLibre.setAttribute('required', 'required');
+    els.motifLibre.placeholder = 'En quelques mots';
+    return;
+  }
+
+  els.champMotifLibre.hidden = true;
+  els.motifLibre.removeAttribute('required');
+  els.grilleMotifs.hidden = false;
+  els.motif.setAttribute('required', 'required');
+
+  cat.motifs.forEach((m, i) => {
+    const o = document.createElement('option');
+    o.value = String(i);
+    o.textContent = m.label;
+    els.motif.appendChild(o);
+  });
+  remplirGrilleMotifs(cat);
+});
+
+/* Le renvoi fibre est détecté dès le choix du motif, avant toute autre saisie. */
+els.motif.addEventListener('change', () => {
+  const cat = categorieCourante();
+  if (!cat) return;
+  const m = cat.motifs[Number(els.motif.value)];
+  if (!m) { els.competence.hidden = true; return; }
+
+  if (m.renvoi === 'fibre') { origineFibre = 'motif'; afficherRenvoiFibre(); return; }
+
+  if (m.info) {
+    els.competence.innerHTML = '<strong>Bon à savoir</strong>' + echapper(m.info);
+    els.competence.hidden = false;
+  } else {
+    els.competence.hidden = true;
+  }
+});
+
+function afficherRenvoiFibre() {
+  const source = vueActuelle;
+  vueActuelle = els.blocFibre;
+  basculerVue(source, els.blocFibre, () => {
+    const titre = els.blocFibre.querySelector('h2');
+    titre.setAttribute('tabindex', '-1');
+    titre.focus({ preventScroll: true });
+    defiler(els.blocFibre, 'start');
+  });
+}
+
+els.btnRetour.addEventListener('click', () => {
+  if (origineFibre === 'accueil') { allerAccueil(); return; }
+  const cible = DEFINITION_ETAPES[0].el; // étape « problème »
+  indexEtape = 0;
+  vueActuelle = cible;
+  basculerVue(els.blocFibre, cible, () => {
+    els.motif.value = '';           // remise à zéro du choix de motif
+    els.grilleMotifs.querySelectorAll('.bouton-motif').forEach((b) => b.classList.remove('selectionnee'));
+    els.competence.hidden = true;
+    defiler(cible, 'start');
+  });
+});
+
+/* ============================================================================
+   7. CARTE ET LOCALISATION
+   ============================================================================ */
+function initCarte() {
+  // Leaflet indisponible (CDN bloqué, hors ligne, aperçu en bac à sable) :
+  // la carte cède la place à un message, le champ adresse suffit à localiser.
+  if (typeof L === 'undefined') {
+    els.btnCarte.removeAttribute('aria-hidden');
+    els.btnCarte.className = 'encart-info';
+    els.btnCarte.style.height = 'auto';
+    els.btnCarte.innerHTML = '<strong>Carte indisponible</strong>' +
+      "La carte n'a pas pu être chargée. Saisissez l'adresse ci-dessus, ou utilisez le bouton " +
+      '« Me localiser » : votre signalement sera transmis de la même façon.';
+    return;
+  }
+  const c = CONFIG.CARTE;
+  etat.carte = L.map('carte', {
+    center: [c.lat, c.lon],
+    zoom: c.zoom,
+    minZoom: 13,
+    maxBounds: L.latLngBounds([c.lat - c.marge, c.lon - c.marge], [c.lat + c.marge, c.lon + c.marge]),
+    // 0,9 collait presque net à la limite. Une valeur plus basse laisse la carte
+    // suivre le doigt en résistant de plus en plus : la limite se sent, elle ne bloque pas.
+    maxBoundsViscosity: 0.65,
+    scrollWheelZoom: false,
+    // L'attribution contient des liens : elle sortirait focusable d'un conteneur
+    // aria-hidden. Elle est donc rendue en texte sous la carte, hors de cette zone.
+    attributionControl: false
+  });
+
+  // Fond IGN Plan v2 (Géoplateforme), repli OpenStreetMap si indisponible
+  const ign = L.tileLayer(
+    'https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0' +
+    '&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2&STYLE=normal&TILEMATRIXSET=PM' +
+    '&FORMAT=image/png&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}',
+    { maxZoom: 19 }
+  );
+  ign.on('tileerror', function basculeOSM() {
+    ign.off('tileerror', basculeOSM);
+    etat.carte.removeLayer(ign);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      { maxZoom: 19 }).addTo(etat.carte);
+  });
+  ign.addTo(etat.carte);
+
+  etat.marqueur = L.marker([c.lat, c.lon], { draggable: true, autoPan: true, keyboard: false })
+    .addTo(etat.carte)
+    .setOpacity(0.45);
+
+  etat.marqueur.on('dragend', () => {
+    const p = etat.marqueur.getLatLng();
+    definirPosition(p.lat, p.lng, 'manuel', true);
+  });
+  etat.carte.on('click', (e) => {
+    definirPosition(e.latlng.lat, e.latlng.lng, 'manuel', true);
+  });
+
+  // RGAA : rien de focusable ne doit subsister dans un conteneur aria-hidden.
+  const neutraliserFocus = () => {
+    els.btnCarte.querySelectorAll('a, button, [tabindex]').forEach((el) => {
+      el.setAttribute('tabindex', '-1');
+    });
+  };
+  neutraliserFocus();
+  etat.carte.on('layeradd zoomend moveend', neutraliserFocus);
+
+  // Attribution rendue hors de la zone aria-hidden, sous la carte.
+  const credit = document.createElement('p');
+  credit.className = 'aide';
+  credit.id = 'credit-carte';
+  credit.innerHTML = 'Fond de plan : IGN Géoplateforme, ou ' +
+    '<a href="https://www.openstreetmap.org/copyright">contributeurs OpenStreetMap</a>.';
+  els.btnCarte.insertAdjacentElement('afterend', credit);
+
+  // Rotation d'écran, clavier virtuel qui se ferme, etc. : la taille du
+  // conteneur change sans que la carte le sache d'elle-même.
+  window.addEventListener('resize', () => etat.carte && etat.carte.invalidateSize());
+}
+
+function definirPosition(lat, lon, source, geocoderInverse) {
+  etat.latitude = Number(lat.toFixed(6));
+  etat.longitude = Number(lon.toFixed(6));
+  etat.precisionSource = source;
+
+  if (etat.marqueur) {
+    etat.marqueur.setLatLng([etat.latitude, etat.longitude]).setOpacity(1);
+    if (etat.carte) etat.carte.panTo([etat.latitude, etat.longitude]);
+  }
+  els.btnEffacer.hidden = false;
+  annoncerPosition();
+
+  if (geocoderInverse) geocodageInverse(etat.latitude, etat.longitude);
+}
+
+function annoncerPosition() {
+  if (etat.latitude === null && !etat.adresse) {
+    els.position.className = 'position-retenue vide';
+    els.position.textContent = 'Aucune position retenue pour l\'instant.';
+    return;
+  }
+  els.position.className = 'position-retenue';
+  controlerChamp('adresse', true);
+  let t = 'Position retenue : ';
+  t += etat.adresse ? etat.adresse : 'repère placé sur la carte';
+  if (etat.latitude !== null) t += ' (' + etat.latitude + ', ' + etat.longitude + ')';
+  els.position.textContent = t + '.';
+}
+
+els.btnEffacer.addEventListener('click', () => {
+  etat.latitude = null; etat.longitude = null; etat.precisionSource = null;
+  etat.adresse = ''; els.adresse.value = '';
+  if (etat.marqueur) etat.marqueur.setOpacity(0.45);
+  els.btnEffacer.hidden = true;
+  annoncerPosition();
+  controlerChamp('adresse', false);
+  els.adresse.focus();
+});
+
+/* --- Bouton « Me localiser » --- */
+function reinitBoutonLocaliser() {
+  els.btnLocaliser.disabled = false;
+  els.btnLocaliser.textContent = 'Me localiser';
+}
+
+els.btnLocaliser.addEventListener('click', () => {
+  if (!navigator.geolocation) {
+    els.position.className = 'position-retenue';
+    els.position.textContent = "Votre navigateur ne permet pas la localisation automatique. Saisissez une adresse.";
+    return;
+  }
+  // La géolocalisation exige une origine sécurisée (HTTPS). En HTTP ou dans un
+  // aperçu isolé, l'appel est refusé ou reste sans réponse : on le dit tout de suite.
+  if (window.isSecureContext === false) {
+    els.position.className = 'position-retenue';
+    els.position.textContent = "La localisation automatique n'est disponible que sur une page sécurisée (https). Saisissez l'adresse ci-dessus.";
+    els.adresse.focus();
+    return;
+  }
+
+  els.btnLocaliser.disabled = true;
+  els.btnLocaliser.textContent = 'Localisation…';
+
+  // Garde-fou : si ni le succès ni l'erreur ne reviennent (permission ignorée
+  // dans certains contextes), on relâche le bouton et on propose l'adresse.
+  let rendu = false;
+  const relacher = () => { if (rendu) return; rendu = true; clearTimeout(veille); reinitBoutonLocaliser(); };
+  const veille = setTimeout(() => {
+    if (rendu) return;
+    relacher();
+    els.position.className = 'position-retenue';
+    els.position.textContent = "La position n'a pas pu être obtenue. Saisissez l'adresse ci-dessus.";
+    els.adresse.focus();
+  }, 14000);
+
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      relacher();
+      definirPosition(pos.coords.latitude, pos.coords.longitude, 'gps', true);
+      if (etat.carte) etat.carte.setView([pos.coords.latitude, pos.coords.longitude], 18);
+    },
+    (err) => {
+      relacher();
+      els.position.className = 'position-retenue';
+      els.position.textContent = err.code === 1
+        ? "La localisation a été refusée. Autorisez-la dans les réglages de votre navigateur, ou saisissez l'adresse ci-dessus."
+        : "La position n'a pas pu être obtenue. Saisissez l'adresse ci-dessus.";
+      els.adresse.focus();
+    },
+    { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+  );
+});
+
+/* --- Autocomplétion BAN (Géoplateforme), filtrée sur le code postal --- */
+let minuteurAdresse = null;
+els.adresse.addEventListener('input', () => {
+  clearTimeout(minuteurAdresse);
+  const q = els.adresse.value.trim();
+  if (q.length < 3) { fermerSuggestions(); return; }
+  minuteurAdresse = setTimeout(() => chercherAdresse(q), 260);
+});
+
+function chercherAdresse(q) {
+  // Index « address » uniquement : le filtre postcode n'est pas accepté sur l'index POI,
+  // et la requête mixte renvoie une erreur 400.
+  const url = CONFIG.API_GEOCODAGE + '?index=address&q=' + encodeURIComponent(q) +
+              '&postcode=' + CONFIG.CODE_POSTAL + '&limit=6&autocomplete=1';
+  els.etatAdresse.textContent = '';
+  fetch(url)
+    .then((r) => r.ok ? r.json() : Promise.reject(r.status))
+    .then((d) => {
+      const f = (d && d.features) || [];
+      afficherSuggestions(f);
+      els.etatAdresse.textContent = f.length ? '' : 'Aucune adresse trouvée à Épinay-sur-Orge pour cette saisie.';
+    })
+    .catch(() => {
+      fermerSuggestions();
+      els.etatAdresse.textContent =
+        "Le service d'adresses ne répond pas. Écrivez l'adresse à la main, ou placez le repère sur la carte.";
+    });
+}
+
+function afficherSuggestions(features) {
+  etat.dernieresSuggestions = features;
+  etat.suggestionActive = -1;
+  els.suggestions.innerHTML = '';
+  if (!features.length) { fermerSuggestions(); return; }
+
+  // Motif combobox / listbox : les enfants directs de la liste sont des options,
+  // jamais des boutons. Le focus reste sur le champ, l'option courante est
+  // désignée par aria-activedescendant.
+  features.forEach((f, i) => {
+    const li = document.createElement('li');
+    li.id = 'suggestion-' + i;
+    li.setAttribute('role', 'option');
+    li.setAttribute('aria-selected', 'false');
+    li.textContent = f.properties.label;
+    li.addEventListener('mousedown', (e) => { e.preventDefault(); choisirSuggestion(i); });
+    els.suggestions.appendChild(li);
+  });
+  els.suggestions.hidden = false;
+  els.adresse.setAttribute('aria-expanded', 'true');
+}
+
+function fermerSuggestions() {
+  els.suggestions.hidden = true;
+  els.suggestions.innerHTML = '';
+  els.adresse.setAttribute('aria-expanded', 'false');
+  els.adresse.removeAttribute('aria-activedescendant');
+  etat.suggestionActive = -1;
+}
+
+function choisirSuggestion(i) {
+  const f = etat.dernieresSuggestions[i];
+  if (!f) return;
+  etat.adresse = f.properties.label;
+  els.adresse.value = etat.adresse;
+  fermerSuggestions();
+  const [lon, lat] = f.geometry.coordinates;
+  definirPosition(lat, lon, 'adresse', false);
+  if (etat.carte) etat.carte.setView([lat, lon], 18);
+  els.adresse.focus();
+}
+
+/* Navigation clavier dans la liste de suggestions */
+els.adresse.addEventListener('keydown', (e) => {
+  const options = els.suggestions.querySelectorAll('li[role=option]');
+  if (els.suggestions.hidden || !options.length) return;
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    const d = e.key === 'ArrowDown' ? 1 : -1;
+    etat.suggestionActive = (etat.suggestionActive + d + options.length) % options.length;
+    options.forEach((o) => o.setAttribute('aria-selected', 'false'));
+    const courante = options[etat.suggestionActive];
+    courante.setAttribute('aria-selected', 'true');
+    els.adresse.setAttribute('aria-activedescendant', courante.id);
+    courante.scrollIntoView({ block: 'nearest' });
+  } else if (e.key === 'Enter' && etat.suggestionActive >= 0) {
+    e.preventDefault();
+    choisirSuggestion(etat.suggestionActive);
+  } else if (e.key === 'Escape') {
+    fermerSuggestions();
+  }
+});
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.bloc-adresse')) fermerSuggestions();
+});
+
+/* L'adresse tapée sans choix de suggestion reste valable */
+els.adresse.addEventListener('blur', () => {
+  setTimeout(() => {
+    if (els.adresse.value.trim() && els.adresse.value.trim() !== etat.adresse) {
+      etat.adresse = els.adresse.value.trim();
+      if (!etat.precisionSource) etat.precisionSource = 'adresse';
+      annoncerPosition();
+    }
+  }, 180);
+});
+
+/* --- Géocodage inverse quand le repère bouge --- */
+function geocodageInverse(lat, lon) {
+  const url = CONFIG.API_GEOCODAGE_INVERSE + '?lon=' + lon + '&lat=' + lat + '&index=address&limit=1';
+  fetch(url)
+    .then((r) => r.ok ? r.json() : Promise.reject(r.status))
+    .then((d) => {
+      const f = d && d.features && d.features[0];
+      if (!f) return;
+      etat.adresse = f.properties.label;
+      els.adresse.value = etat.adresse;
+      annoncerPosition();
+    })
+    .catch(() => { /* l'adresse reste facultative si le service ne répond pas */ });
+}
+
+/* ============================================================================
+   8. DESCRIPTION
+   ============================================================================ */
+els.description.addEventListener('input', () => {
+  const n = els.description.value.length;
+  els.compteur.textContent = n + ' / 1500 caractères';
+  els.compteur.classList.toggle('trop', n > 0 && n < 20);
+  if (n > 0 && n < 20) els.compteur.textContent = n + ' / 1500 caractères, 20 minimum';
+  majContinuer();
+});
+
+/* ============================================================================
+   9. PHOTOS : compression, aperçu, lecture EXIF GPS
+   ============================================================================ */
+els.btnPhotos.addEventListener('click', () => els.photos.click());
+
+/* Le retour d'état des photos est rendu à côté des photos, et non sous le
+   bouton d'envoi situé à un écran de distance. */
+function messagePhotos(texte) { els.etatPhotos.textContent = texte || ''; }
+
+els.photos.addEventListener('change', () => {
+  const fichiers = Array.from(els.photos.files || []);
+  els.photos.value = '';
+  ajouterFichiers(fichiers);
+});
+
+/* La zone en pointillés annonce un réceptacle : elle en a le comportement.
+   L'état de survol est visible pendant tout le geste, pas seulement au lâcher. */
+['dragenter', 'dragover'].forEach((t) => {
+  els.depose.addEventListener(t, (e) => {
+    e.preventDefault();
+    els.depose.classList.add('survol');
+  });
+});
+['dragleave', 'drop'].forEach((t) => {
+  els.depose.addEventListener(t, (e) => {
+    e.preventDefault();
+    if (t === 'dragleave' && els.depose.contains(e.relatedTarget)) return;
+    els.depose.classList.remove('survol');
+  });
+});
+els.depose.addEventListener('drop', (e) => {
+  const fichiers = Array.from((e.dataTransfer && e.dataTransfer.files) || [])
+    .filter((f) => /^image\//.test(f.type));
+  if (fichiers.length) ajouterFichiers(fichiers);
+});
+
+/* Coller une capture d'écran est le geste naturel sur ordinateur. */
+document.addEventListener('paste', (e) => {
+  if (els.blocEtapeDescription.hidden) return;
+  const fichiers = Array.from((e.clipboardData && e.clipboardData.files) || [])
+    .filter((f) => /^image\//.test(f.type));
+  if (fichiers.length) { e.preventDefault(); ajouterFichiers(fichiers); }
+});
+
+async function ajouterFichiers(fichiers) {
+  if (!fichiers.length) return;
+  const restant = CONFIG.MAX_PHOTOS - etat.photos.length;
+  if (restant <= 0) {
+    messagePhotos(CONFIG.MAX_PHOTOS + ' photos maximum : retirez-en une pour en ajouter une autre.');
+    return;
+  }
+  const aTraiter = fichiers.slice(0, restant);
+  const ignores = fichiers.length - aTraiter.length;
+
+  // La réduction d'une photo de téléphone prend un temps perceptible :
+  // l'attente est annoncée pendant, et pas seulement une fois finie.
+  els.btnPhotos.disabled = true;
+  let index = 0;
+  for (const f of aTraiter) {
+    index += 1;
+    messagePhotos(aTraiter.length > 1
+      ? 'Préparation de la photo ' + index + ' sur ' + aTraiter.length + '…'
+      : 'Préparation de la photo…');
+    try {
+      const gps = await lireGpsExif(f);
+      const compressee = await compresser(f);
+      etat.photos.push(compressee);
+      dessinerVignettes();
+      if (gps && etat.latitude === null) proposerPositionPhoto(gps);
+    } catch (err) {
+      messagePhotos('Le fichier « ' + f.name + ' » n\'a pas pu être lu. Convertissez-le en JPEG ou PNG, puis réessayez.');
+      els.btnPhotos.disabled = false;
+      return;
+    }
+  }
+  els.btnPhotos.disabled = false;
+  messagePhotos(ignores
+    ? CONFIG.MAX_PHOTOS + ' photos maximum : ' + ignores + ' fichier(s) n\'ont pas été ajoutés.'
+    : etat.photos.length + ' photo(s) prête(s) à être envoyée(s).');
+}
+
+function compresser(fichier) {
+  return new Promise((resolve, reject) => {
+    const lecteur = new FileReader();
+    lecteur.onerror = () => reject(new Error('lecture'));
+    lecteur.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('decodage'));
+      img.onload = () => {
+        let { width: l, height: h } = img;
+        const cote = CONFIG.PHOTO_COTE_LONG;
+        if (Math.max(l, h) > cote) {
+          const r = cote / Math.max(l, h);
+          l = Math.round(l * r); h = Math.round(h * r);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = l; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, l, h);
+        // La réécriture par canvas supprime nativement les métadonnées, EXIF GPS compris.
+        const dataUrl = canvas.toDataURL('image/jpeg', CONFIG.PHOTO_QUALITE);
+        const base64 = dataUrl.split(',')[1];
+        resolve({
+          nom: fichier.name.replace(/\.[^.]+$/, '') + '.jpg',
+          base64: base64,
+          apercu: dataUrl,
+          octets: Math.round(base64.length * 3 / 4)
+        });
+      };
+      img.src = lecteur.result;
+    };
+    lecteur.readAsDataURL(fichier);
+  });
+}
+
+function dessinerVignettes() {
+  els.vignettes.innerHTML = '';
+  etat.photos.forEach((p, i) => {
+    const li = document.createElement('li');
+    li.className = 'vignette';
+    const img = document.createElement('img');
+    img.src = p.apercu; img.alt = 'Aperçu de ' + p.nom;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.setAttribute('aria-label', 'Retirer la photo ' + (i + 1));
+    b.textContent = '×';
+    b.addEventListener('click', () => {
+      retirerPhoto(i);
+    });
+    const poids = document.createElement('span');
+    poids.className = 'poids';
+    poids.textContent = Math.round(p.octets / 1024) + ' Ko';
+    li.append(img, b, poids);
+    els.vignettes.appendChild(li);
+  });
+  els.btnPhotos.textContent = etat.photos.length
+    ? 'Ajouter une autre photo (' + etat.photos.length + '/' + CONFIG.MAX_PHOTOS + ')'
+    : 'Ajouter des photos';
+}
+
+/* Un retrait est un geste courant, souvent un faux contact sur une vignette de
+   96 pixels : il se répare après coup plutôt que de se faire confirmer avant.
+   La boîte de dialogue reste réservée à l'irréversible, et il n'y en a pas ici. */
+function retirerPhoto(i) {
+  const photo = etat.photos[i];
+  if (!photo) return;
+  etat.photos.splice(i, 1);
+  dessinerVignettes();
+  etat.photoRetiree = { photo: photo, index: i };
+  afficherAnnulation(photo.nom);
+  els.btnPhotos.focus();
+}
+
+function afficherAnnulation(nom) {
+  clearTimeout(etat.minuteurAnnulation);
+  const ancien = $('annulation-photo');
+  if (ancien) ancien.remove();
+
+  const div = document.createElement('div');
+  div.className = 'annulation';
+  div.id = 'annulation-photo';
+  div.setAttribute('role', 'status');
+
+  const texte = document.createElement('span');
+  texte.textContent = 'Photo retirée : ' + nom + '.';
+
+  const bouton = document.createElement('button');
+  bouton.type = 'button';
+  bouton.className = 'bouton-discret';
+  bouton.textContent = 'Annuler le retrait';
+  bouton.addEventListener('click', () => {
+    if (!etat.photoRetiree) return;
+    etat.photos.splice(etat.photoRetiree.index, 0, etat.photoRetiree.photo);
+    etat.photoRetiree = null;
+    dessinerVignettes();
+    div.remove();
+    els.btnPhotos.focus();
+  });
+
+  div.append(texte, bouton);
+  els.vignettes.insertAdjacentElement('afterend', div);
+  // Douze secondes : le temps de s'apercevoir de l'erreur sans laisser
+  // traîner un élément d'interface qui n'a plus d'objet.
+  etat.minuteurAnnulation = setTimeout(() => {
+    etat.photoRetiree = null;
+    div.remove();
+  }, 12000);
+}
+
+/* Proposition, jamais imposition. Une boîte de dialogue système gèlerait la page
+   au milieu du traitement des fichiers : la proposition est rendue en ligne,
+   sous le champ concerné, et n'empêche rien pendant qu'elle attend. */
+function proposerPositionPhoto(gps) {
+  const ancien = $('proposition-position');
+  if (ancien) ancien.remove();
+
+  const div = document.createElement('div');
+  div.className = 'encart-info';
+  div.id = 'proposition-position';
+  div.setAttribute('role', 'status');
+
+  const intro = document.createElement('span');
+  intro.innerHTML = '<strong>Position trouvée dans la photo</strong>' +
+    'Elle indique le point ' + gps.lat.toFixed(5) + ', ' + gps.lon.toFixed(5) +
+    '. Voulez-vous y placer le repère ?';
+
+  const actions = document.createElement('div');
+  actions.className = 'actions';
+
+  const oui = document.createElement('button');
+  oui.type = 'button';
+  oui.className = 'bouton';
+  oui.textContent = 'Utiliser cette position';
+  oui.addEventListener('click', () => {
+    definirPosition(gps.lat, gps.lon, 'gps', true);
+    if (etat.carte) etat.carte.setView([gps.lat, gps.lon], 18);
+    div.remove();
+    els.btnPhotos.focus();
+  });
+
+  const non = document.createElement('button');
+  non.type = 'button';
+  non.className = 'bouton bouton-secondaire';
+  non.textContent = 'Ignorer';
+  non.addEventListener('click', () => { div.remove(); els.btnPhotos.focus(); });
+
+  actions.append(oui, non);
+  div.append(intro, actions);
+  els.vignettes.insertAdjacentElement('afterend', div);
+}
+
+/* Lecture minimale de l'EXIF GPS d'un JPEG, sans dépendance externe */
+function lireGpsExif(fichier) {
+  return new Promise((resolve) => {
+    if (!/jpe?g$/i.test(fichier.type) && !/\.jpe?g$/i.test(fichier.name)) return resolve(null);
+    const lecteur = new FileReader();
+    lecteur.onerror = () => resolve(null);
+    lecteur.onload = () => {
+      try { resolve(extraireGps(lecteur.result)); } catch (e) { resolve(null); }
+    };
+    lecteur.readAsArrayBuffer(fichier.slice(0, 262144)); // l'EXIF est en tête de fichier
+  });
+}
+
+function extraireGps(buffer) {
+  const v = new DataView(buffer);
+  if (v.getUint16(0, false) !== 0xFFD8) return null;
+  let o = 2;
+  while (o < v.byteLength - 4) {
+    if (v.getUint8(o) !== 0xFF) return null;
+    const marqueur = v.getUint16(o, false);
+    const taille = v.getUint16(o + 2, false);
+    if (marqueur === 0xFFE1 && v.getUint32(o + 4, false) === 0x45786966) {
+      const tiff = o + 10;
+      const petitBoutiste = v.getUint16(tiff, false) === 0x4949;
+      const ifd0 = tiff + v.getUint32(tiff + 4, petitBoutiste);
+      const n = v.getUint16(ifd0, petitBoutiste);
+      let gps = null;
+      for (let i = 0; i < n; i++) {
+        const e = ifd0 + 2 + i * 12;
+        if (v.getUint16(e, petitBoutiste) === 0x8825) gps = tiff + v.getUint32(e + 8, petitBoutiste);
+      }
+      if (gps === null) return null;
+      const tags = {};
+      const m = v.getUint16(gps, petitBoutiste);
+      for (let i = 0; i < m; i++) {
+        const e = gps + 2 + i * 12;
+        tags[v.getUint16(e, petitBoutiste)] = e;
+      }
+      const lat = rationnelsEnDegres(v, tags[2], tiff, petitBoutiste);
+      const lon = rationnelsEnDegres(v, tags[4], tiff, petitBoutiste);
+      if (lat === null || lon === null) return null;
+      const refLat = lireCaractere(v, tags[1]);
+      const refLon = lireCaractere(v, tags[3]);
+      return {
+        lat: refLat === 'S' ? -lat : lat,
+        lon: refLon === 'W' ? -lon : lon
+      };
+    }
+    o += 2 + taille;
+  }
+  return null;
+}
+
+function lireCaractere(v, entree) {
+  if (entree === undefined) return null;
+  return String.fromCharCode(v.getUint8(entree + 8));
+}
+
+function rationnelsEnDegres(v, entree, tiff, pb) {
+  if (entree === undefined) return null;
+  const debut = tiff + v.getUint32(entree + 8, pb);
+  const val = [];
+  for (let i = 0; i < 3; i++) {
+    const num = v.getUint32(debut + i * 8, pb);
+    const den = v.getUint32(debut + i * 8 + 4, pb);
+    if (!den) return null;
+    val.push(num / den);
+  }
+  return val[0] + val[1] / 60 + val[2] / 3600;
+}
+
+/* ============================================================================
+   10. VALIDATION
+   ============================================================================ */
+function libelleMotif() {
+  const cat = categorieCourante();
+  if (!cat) return '';
+  if (cat.libre) return els.motifLibre.value.trim();
+  const m = cat.motifs[Number(els.motif.value)];
+  return m ? m.label : '';
+}
+
+/* Les contrôles sont décrits une seule fois, puis employés aussi bien au fil de
+   la saisie que pour le récapitulatif d'envoi : un champ ne peut pas être jugé
+   valide par un chemin et invalide par l'autre. */
+function controles() {
+  const liste = [{
+    id: 'categorie', el: els.categorie, ok: !!els.categorie.value,
+    message: 'Choisissez la catégorie de votre signalement.'
+  }];
+
+  const cat = categorieCourante();
+  if (cat) {
+    liste.push({
+      id: cat.libre ? 'motif-libre' : 'motif',
+      el: cat.libre ? els.motifLibre : els.motif,
+      ok: !!libelleMotif(),
+      message: cat.libre ? 'Précisez en quelques mots l\'objet de votre signalement.' : 'Choisissez un motif.'
+    });
+  }
+
+  liste.push({
+    id: 'adresse', el: els.adresse,
+    ok: (etat.latitude !== null && etat.longitude !== null) || !!els.adresse.value.trim(),
+    message: 'Indiquez une adresse ou placez le repère sur la carte.'
+  });
+
+  const d = els.description.value.trim();
+  liste.push({
+    id: 'description', el: els.description,
+    ok: d.length >= 20 && d.length <= 1500,
+    message: d.length > 1500 ? 'La description dépasse 1500 caractères.'
+                             : 'Décrivez le problème en 20 caractères au minimum.'
+  });
+
+  liste.push({
+    id: 'email', el: els.email,
+    ok: /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(els.email.value.trim()),
+    message: 'Saisissez une adresse e-mail valide pour recevoir la suite donnée.'
+  });
+
+  liste.push({
+    id: 'consentement', el: els.consentement,
+    ok: els.consentement.checked,
+    message: 'Cochez la case d\'accord sur l\'usage de vos données.'
+  });
+
+  return liste;
+}
+
+/* Le message se pose contre le champ concerné. Le récapitulatif en tête de
+   formulaire reste, mais il n'est plus le seul endroit où l'on apprend
+   ce qui ne va pas. */
+function messageChamp(c, afficher) {
+  const idMsg = 'erreur-' + c.id;
+  const existant = $(idMsg);
+  const el = c.el;
+  if (!el) return;
+
+  if (!afficher) {
+    if (existant) existant.remove();
+    el.classList.remove('invalide');
+    el.removeAttribute('aria-invalid');
+    const decrit = (el.getAttribute('aria-describedby') || '')
+      .split(/\s+/).filter((x) => x && x !== idMsg).join(' ');
+    if (decrit) el.setAttribute('aria-describedby', decrit);
+    else el.removeAttribute('aria-describedby');
+    return;
+  }
+
+  el.classList.add('invalide');
+  el.setAttribute('aria-invalid', 'true');
+  if (existant) { existant.textContent = c.message; return; }
+
+  const span = document.createElement('span');
+  span.className = 'erreur-champ';
+  span.id = idMsg;
+  span.textContent = c.message;
+  const cible = el.closest('.case') || el.closest('.bloc-adresse') || el;
+  cible.insertAdjacentElement('afterend', span);
+
+  const decrit = (el.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
+  if (decrit.indexOf(idMsg) === -1) decrit.push(idMsg);
+  el.setAttribute('aria-describedby', decrit.join(' '));
+}
+
+/* Un champ n'est jugé qu'une fois quitté : personne n'aime être corrigé
+   à la troisième lettre. En revanche, dès qu'il redevient correct,
+   le message disparaît sans attendre le prochain envoi. */
+function controlerChamp(id, seulementLaLevee) {
+  const c = controles().find((x) => x.id === id);
+  if (!c) return;
+  if (c.ok) { messageChamp(c, false); return; }
+  if (!seulementLaLevee && etat.champsTouches.has(id)) messageChamp(c, true);
+}
+
+function brancherControles() {
+  const paires = [
+    ['categorie', els.categorie, 'change'],
+    ['motif', els.motif, 'change'],
+    ['motif-libre', els.motifLibre, 'blur'],
+    ['adresse', els.adresse, 'blur'],
+    ['description', els.description, 'blur'],
+    ['email', els.email, 'blur'],
+    ['consentement', els.consentement, 'change']
+  ];
+  paires.forEach(([id, el, evenement]) => {
+    if (!el) return;
+    el.addEventListener(evenement, () => {
+      etat.champsTouches.add(id);
+      controlerChamp(id, false);
+    });
+    el.addEventListener('input', () => controlerChamp(id, true));
+  });
+}
+
+function valider() {
+  const erreurs = [];
+  controles().forEach((c) => {
+    etat.champsTouches.add(c.id);
+    messageChamp(c, !c.ok);
+    if (!c.ok) erreurs.push({ id: c.id, texte: c.message });
+  });
+  return erreurs;
+}
+
+function afficherErreurs(erreurs) {
+  els.resumeListe.innerHTML = '';
+  if (!erreurs.length) { els.resume.hidden = true; return; }
+  erreurs.forEach((e) => {
+    const li = document.createElement('li');
+    const a = document.createElement('a');
+    a.href = '#' + e.id;
+    a.textContent = e.texte;
+    a.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      const cible = $(e.id);
+      if (cible) { cible.focus({ preventScroll: true }); defiler(cible, 'center'); }
+    });
+    li.appendChild(a);
+    els.resumeListe.appendChild(li);
+  });
+  els.resume.hidden = false;
+  els.resume.focus({ preventScroll: true });
+  defiler(els.resume, 'center');
+}
+
+/* ============================================================================
+   11. ENVOI
+   ============================================================================ */
+function reference() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return 'ESO-' + String(d.getFullYear()).slice(2) + p(d.getMonth() + 1) + p(d.getDate()) +
+         '-' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());
+}
+
+function messageEtat(texte) { els.etatEnvoi.textContent = texte || ''; }
+
+els.form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (etat.envoiEnCours) return;              // blocage du double clic
+
+  if (els.societe.value) return;              // piège à robots
+  if (Date.now() - etat.ouverture < CONFIG.DELAI_MINIMAL_MS) {
+    messageEtat('Vérification en cours, réessayez dans quelques secondes.');
+    return;
+  }
+
+  const erreurs = valider();
+  if (erreurs.length) { afficherErreurs(erreurs); return; }
+  afficherErreurs([]);
+
+  const cat = categorieCourante();
+  const donnees = {
+    reference: reference(),
+    horodatage: new Date().toISOString(),
+    categorie: cat ? cat.label : '',
+    motif: libelleMotif(),
+    description: els.description.value.trim(),
+    adresse: els.adresse.value.trim() || etat.adresse,
+    latitude: etat.latitude,
+    longitude: etat.longitude,
+    precision_source: etat.precisionSource || 'adresse',
+    complement: els.complement.value.trim(),
+    email: els.email.value.trim(),
+    nom: els.nom.value.trim(),
+    telephone: els.telephone.value.trim(),
+    consentement: els.consentement.checked,
+    photos: etat.photos.map((p) => ({ nom: p.nom, type: 'image/jpeg', donnees: p.base64 })),
+    user_agent: navigator.userAgent,
+    societe: ''
+  };
+
+  // Contrôle du poids cumulé avant envoi
+  const octets = new Blob([JSON.stringify(donnees)]).size;
+  if (octets > CONFIG.PAYLOAD_MAX_MO * 1024 * 1024) {
+    afficherErreurs([{
+      id: 'photos',
+      texte: 'Vos photos dépassent ' + CONFIG.PAYLOAD_MAX_MO + ' Mo au total (' +
+             (octets / 1048576).toFixed(1) + ' Mo). Retirez une photo, puis renvoyez.'
+    }]);
+    return;
+  }
+
+  etat.envoiEnCours = true;
+  els.btnEnvoyer.disabled = true;
+  // L'attente est la seule de la page à être réellement bloquante :
+  // c'est la seule qui mérite un indicateur d'activité.
+  els.btnEnvoyer.innerHTML = '<span class="rotor" aria-hidden="true"></span>Envoi en cours…';
+  messageEtat('Transmission de votre signalement, ne fermez pas cette page.');
+
+  try {
+    const rep = await fetch(CONFIG.WEBHOOK, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(donnees)
+    });
+    const res = await rep.json().catch(() => ({}));
+    if (!rep.ok || res.ok === false) throw new Error(res.message || ('HTTP ' + rep.status));
+    afficherConfirmation(donnees, res.reference || donnees.reference);
+  } catch (err) {
+    afficherEchec(donnees);
+  } finally {
+    etat.envoiEnCours = false;
+    els.btnEnvoyer.disabled = false;
+    els.btnEnvoyer.textContent = 'Envoyer mon signalement';
+    messageEtat('');
+  }
+});
+
+/* ---------- Confirmation ---------- */
+function afficherConfirmation(d, ref) {
+  els.reference.textContent = ref;
+  els.recap.innerHTML = '';
+  const lignes = [
+    ['Objet', d.categorie + ' · ' + d.motif],
+    ['Lieu', (d.adresse || 'position sur la carte') + (d.complement ? ' · ' + d.complement : '')],
+    ['Photos', d.photos.length ? d.photos.length + ' photo(s) jointe(s)' : 'aucune photo'],
+    ['Accusé envoyé à', d.email]
+  ];
+  lignes.forEach(([t, v]) => {
+    const li = document.createElement('li');
+    li.innerHTML = '<strong>' + echapper(t) + '</strong>' + echapper(v);
+    els.recap.appendChild(li);
+  });
+  const source = vueActuelle;
+  vueActuelle = els.blocConf;
+  basculerVue(source, els.blocConf, () => {
+    $('ancre-confirmation').focus({ preventScroll: true });
+    defiler(els.blocConf, 'start');
+  });
+}
+
+els.btnNouveau.addEventListener('click', () => {
+  els.form.reset();
+  etat.photos = [];
+  etat.latitude = null; etat.longitude = null; etat.adresse = ''; etat.precisionSource = null;
+  etat.ouverture = Date.now();
+  dessinerVignettes();
+  annoncerPosition();
+  els.grilleCategories.hidden = false;
+  els.chipCategorie.hidden = true;
+  els.aideCategorie.hidden = false;
+  els.grilleMotifs.innerHTML = '';
+  els.blocMotifInline.hidden = true;
+  els.champMotifLibre.hidden = true;
+  els.competence.hidden = true;
+  els.btnEffacer.hidden = true;
+  els.compteur.textContent = '0 / 1500 caractères';
+  if (etat.marqueur) etat.marqueur.setOpacity(0.45);
+  document.querySelectorAll('.invalide').forEach((el) => el.classList.remove('invalide'));
+  document.querySelectorAll('.erreur-champ').forEach((el) => el.remove());
+  etat.champsTouches.clear();
+  etat.photoRetiree = null;
+  clearTimeout(etat.minuteurAnnulation);
+  ['annulation-photo', 'proposition-position', 'encart-echec'].forEach((id) => {
+    const el = $(id); if (el) el.remove();
+  });
+  messagePhotos('');
+  afficherErreurs([]);
+  indexEtape = -1;
+  const source = vueActuelle;
+  vueActuelle = els.blocAccueil;
+  basculerVue(source, els.blocAccueil, () => {
+    els.btnCommencer.focus({ preventScroll: true });
+    defiler(els.blocAccueil, 'start');
+  });
+});
+
+/* ---------- Échec d'envoi : encart orange et repli mailto ---------- */
+function afficherEchec(d) {
+  const ancien = $('encart-echec');
+  if (ancien) ancien.remove();
+
+  const corps =
+    'Signalement ' + d.reference + '\n' +
+    'Catégorie : ' + d.categorie + '\n' +
+    'Motif : ' + d.motif + '\n' +
+    'Adresse : ' + (d.adresse || 'non renseignée') + '\n' +
+    (d.complement ? 'Repère : ' + d.complement + '\n' : '') +
+    'Coordonnées GPS : ' + (d.latitude !== null ? d.latitude + ', ' + d.longitude : 'non renseignées') + '\n' +
+    'Nom : ' + (d.nom || 'non renseigné') + '\n' +
+    'Téléphone : ' + (d.telephone || 'non renseigné') + '\n\n' +
+    'Description :\n' + d.description + '\n\n' +
+    (d.photos.length ? 'Merci de joindre manuellement vos ' + d.photos.length + ' photo(s) à ce message.\n' : '');
+
+  const lien = 'mailto:' + CONFIG.MAIL_CONTACT +
+    '?subject=' + encodeURIComponent('Signalement ' + d.reference + ' - ' + d.categorie + ' / ' + d.motif) +
+    '&body=' + encodeURIComponent(corps);
+
+  const div = document.createElement('div');
+  div.className = 'encart-erreur';
+  div.id = 'encart-echec';
+  div.setAttribute('role', 'alert');
+  div.setAttribute('tabindex', '-1');
+  div.innerHTML =
+    '<h3>Votre signalement n\'a pas pu être transmis</h3>' +
+    '<p>Le service de réception n\'a pas répondu. Vos informations sont toujours saisies dans le formulaire, ' +
+    'rien n\'est perdu. Deux possibilités :</p>' +
+    '<ul><li>réessayer dans quelques minutes avec le bouton d\'envoi,</li>' +
+    '<li>envoyer votre signalement par courriel, le message est déjà pré-rempli.</li></ul>' +
+    '<p><a href="' + lien + '">Envoyer par courriel à ' + CONFIG.MAIL_CONTACT + '</a></p>';
+
+  els.form.parentNode.insertBefore(div, els.form);
+  div.focus({ preventScroll: true });
+  defiler(div, 'center');
+}
+
+/* ============================================================================
+   12. OUTILS
+   ============================================================================ */
+function echapper(s) {
+  return String(s).replace(/[&<>"']/g, (c) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
+}
+
+/* ============================================================================
+   13. DÉMARRAGE
+   ============================================================================ */
+remplirCategories();
+remplirGrilleCategories();
+initCarte();
+brancherControles();
+</script>
+</body>
+</html>
