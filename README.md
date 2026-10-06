@@ -59,16 +59,18 @@ Dans le bloc `CONFIG` du script de `index.html` :
 |---|---|
 | `WEBHOOK` | URL de production du webhook n8n (remplace `https://VOTRE-INSTANCE-N8N.example/...`) |
 | `URL_FIBRE` | Lien vers le formulaire de la Cellule Fibre Optique (remplace `https://VOTRE-FORMULAIRE-FIBRE.example`) |
-| `LOGO` | Chemin du logo blanc (`assets/logo-epinay-negatif.webp`, non fourni : un logo vectoriel intégré prend le relais) |
+| `LOGO` | Chemin du logo blanc (fourni dans `assets/logo-epinay-negatif.webp` ; s'il ne se charge pas, un logo vectoriel intégré prend le relais) |
+| `MAIL_CONTACT`, `MAIL_FIBRE` | Adresses de contact affichées aux habitants (remplacent `contact@example.org` et `cellule-fibre@example.org`) |
 | `PAYLOAD_MAX_MO` | À aligner sur la taille maximale de requête de votre instance n8n |
 
-Les adresses de contact publiques de la mairie affichées dans la page et dans l'accusé de réception sont conservées. Plusieurs mentions `[à confirmer]` restent à valider avec les services (délais de traitement, permanences, adresses de service).
+Dans la page, remplacer aussi les liens `contact@example.org` écrits en dur dans le texte et le lien `https://VOTRE-SITE-FIBRE.example`. Dans le nœud *Accusé de réception*, compléter la signature (`[Adresse postale de la mairie]`, `[Téléphone de la mairie]`, `contact@example.org`). Plusieurs mentions `[à confirmer]` restent à valider avec les services (délais de traitement, permanences, adresses de service).
 
 ## Structure
 
 ```
 .
 ├── index.html             # Page de signalement complète
+├── assets/logo-epinay-negatif.webp  # Logo blanc du bandeau
 ├── workflow-n8n.json      # Workflow n8n anonymisé
 ├── favicon.ico, favicon-*.png, apple-icon-*.png, android-icon-192x192.png, ms-icon-*.png
 └── README.md
